@@ -1,0 +1,334 @@
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useRouter } from 'next/navigation';
+import {
+  Phone,
+  Mail,
+  Calendar,
+  MessageCircle,
+  FileText,
+  MoreVertical,
+  User,
+  Folder,
+  X,
+  File
+} from 'lucide-react';
+import { AdoptionApplication } from '@/types/application';
+import { useTagColorStore } from '@/stores/useTagColorStore';
+
+const formatSubmittedAt = (iso: string) => {
+  try {
+    return new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso));
+  } catch {
+    return '13/02/2026';
+  }
+};
+
+interface ApplicationCardContentProps {
+  application: AdoptionApplication;
+  showRedDot?: boolean;
+  showMenu?: boolean;
+  onOpenProfile: (app: AdoptionApplication) => void;
+  onOpenDetail: (app: AdoptionApplication) => void;
+  onRemove: (app: AdoptionApplication) => void;
+  onOpenDocuments: (app: AdoptionApplication) => void;
+}
+
+export const ApplicationCardContent: React.FC<ApplicationCardContentProps> = ({
+  application,
+  showRedDot,
+  onOpenProfile,
+  onOpenDetail,
+  onRemove,
+  onOpenDocuments
+}) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
+  const [mounted, setMounted] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { getTagColor } = useTagColorStore();
+
+  // Bóc tách danh sách tags động từ application (hỗ trợ cả dạng nested t.tag lẫn dạng phẳng)
+  const displayTags = application.tags ? application.tags.map((t: any) => t.tag || t) : [];
+  // Thêm 2 biến điều kiện, đặt gần chỗ khai báo displayTags
+  const isAdopted =
+    application.status === 'ADOPTION_COMPLETED' ||
+    (application.pet as any)?.status === 'ADOPTED'; // 🆕 fallback: pet bị đổi trạng thái qua dropdown ở Pet Detail
+  const isInterviewCompleted = application.appointment?.status === 'COMPLETED';
+  const documents = (application as any).documents as { status: string }[] | undefined;
+  const totalDocs = documents?.length ?? 0;
+  const acceptedDocs = documents?.filter((d) => d.status === 'ACCEPTED').length ?? 0;
+  const showDocsBadge = application.status === 'NEED_MORE_INFO' && totalDocs > 0;
+  const allDocsAccepted = showDocsBadge && acceptedDocs === totalDocs;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        menuRef.current && !menuRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    const handleScroll = () => { if (isMenuOpen) setIsMenuOpen(false); };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isMenuOpen]);
+
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isMenuOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuCoords({
+        top: rect.bottom + 8,
+        left: rect.right - 220,
+      });
+    }
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleMenuAction = (e: React.MouseEvent, action: string) => {
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    switch (action) {
+      case 'applicantProfile':
+        onOpenProfile(application);
+        break;
+      case 'petProfile':
+        const petId = application.pet?.id;
+        if (petId) router.push(`/shelter/pets/${petId}`);
+        break;
+      case 'allDocuments': onOpenDocuments(application); break;
+      case 'viewApplication': onOpenDetail(application); break;
+      case 'removeTicket':
+        if (window.confirm('Bạn có chắc chắn muốn xoá đơn này không?')) {
+          onRemove(application);
+        }
+        break;
+    }
+  };
+
+  return (
+    <div className="flex flex-col w-full relative group/content">
+      <div className="absolute top-[-2px] right-[-2px] z- opacity-0 group-hover/content:opacity-100 transition-opacity">
+        <button
+          ref={buttonRef}
+          className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-800 transition-all"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={toggleMenu}
+        >
+          <MoreVertical size={15} strokeWidth={2} />
+        </button>
+        {mounted && isMenuOpen && createPortal(
+          <div ref={menuRef} style={{ position: 'fixed', top: `${menuCoords.top}px`, left: `${menuCoords.left}px`, zIndex: 99999 }} className="w-[220px] bg-white rounded-[16px] shadow-xl border border-gray-100 py-2.5 flex flex-col origin-top-right">
+            <button onClick={(e) => handleMenuAction(e, 'applicantProfile')} className="flex items-center gap-3.5 px-4 py-2.5 hover:bg-gray-50 w-full text-left"><User size={18} className="text-gray-800" /> <span className="text-[15px] font-medium text-gray-900">Hồ sơ người nhận nuôi</span></button>
+            <button onClick={(e) => handleMenuAction(e, 'viewApplication')} className="flex items-center gap-3.5 px-4 py-2.5 hover:bg-gray-50 w-full text-left"><FileText size={18} className="text-gray-800" /> <span className="text-[15px] font-medium text-gray-900">Xem đơn đăng ký</span></button>
+            <button onClick={(e) => handleMenuAction(e, 'allDocuments')} className="flex items-center gap-3.5 px-4 py-2.5 hover:bg-gray-50 w-full text-left"><Folder size={18} className="text-gray-800" /> <span className="text-[15px] font-medium text-gray-900">Tất cả tài liệu</span></button>
+            <div className="h-[1px] w-full bg-gray-100 my-1"></div>
+            <button onClick={(e) => handleMenuAction(e, 'removeTicket')} className="flex items-center gap-3.5 px-4 py-2.5 hover:bg-red-50 w-full text-left"><X size={18} className="text-red-600" /> <span className="text-[15px] font-medium text-red-600">Xoá đơn</span></button>
+          </div>,
+          document.body
+        )}
+      </div>
+
+      {/* 1. Ảnh đại diện & Tên — nén lại: avatar nhỏ hơn, margin bottom giảm */}
+      <div className="flex items-center gap-2.5 w-full mb-2.5">
+        <img
+          className="w-[34px] h-[34px] rounded-full object-cover bg-gray-100 border border-gray-200 shrink-0"
+          src={application.pet?.avatarUrl || application.pet?.images?.[0]?.url || "https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=100"}
+          alt={application.fullName || application.user?.name || "Maria Garcia"}
+        />
+        <div className="flex flex-col justify-center min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="font-sans text-[14px] leading-tight text-[#111111] font-semibold truncate hover:text-[#E89B5A] cursor-pointer transition-colors"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onOpenProfile(application); }}
+            >
+              {application.fullName || application.user?.name || "Maria Garcia"}
+            </span>
+            {showRedDot && (
+              <span className="w-[6px] h-[6px] bg-[#FF6B6B] rounded-full shrink-0"></span>
+            )}
+          </div>
+          <span className="font-sans text-[12px] leading-tight text-[#888888] mt-0.5 truncate">
+            Nhận nuôi <span className="font-semibold text-[#111111]">{application.pet?.name || "Luna"}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* 2. Thông tin liên hệ — gộp gọn, font/icon nhỏ hơn, margin giảm */}
+      <div className="flex flex-col gap-1.5 mb-2.5">
+        <div className="flex items-center gap-2 w-full">
+          <Phone size={12} className="text-[#888888] shrink-0" strokeWidth={2} />
+          <span className="font-sans text-[12px] text-[#555555] font-semibold tracking-wide truncate">
+            {application.phone || "0912345678"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 w-full">
+          <Mail size={12} className="text-[#888888] shrink-0" strokeWidth={2} />
+          <span className="font-sans text-[12px] text-[#888888] font-normal truncate">
+            {application.user?.email || application.zalo || "mariagarcia@email.com"}
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Nhãn — chỉ chiếm khoảng trống khi có tag, không còn min-h cố định to */}
+      {/* 3. Nhãn — badge trạng thái thay thế tags khi phỏng vấn xong / đã nhận nuôi */}
+      {isAdopted || isInterviewCompleted ? (
+        <div
+          className="w-full mb-2.5 px-3 py-1.5 rounded-[10px] border text-center text-[11px] font-semibold tracking-tight leading-tight"
+          style={
+            isAdopted
+              ? { backgroundColor: '#F3F4F6', borderColor: '#6B728040', color: '#6B7280' }
+              : { backgroundColor: '#F9F5FD', borderColor: '#5A1B8D40', color: '#5A1B8D' }
+          }
+        >
+          {isAdopted ? 'Đã nhận nuôi' : 'Đã hoàn thành phỏng vấn'}
+        </div>
+      ) : displayTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 mb-2.5">
+          {displayTags.map((tag: any, idx: number) => {
+            const tagColor = tag.color || (typeof tag.tag === 'object' ? tag.tag?.color : null);
+            const fallbackColors = ['#5982E6', '#FF922B', '#40C057', '#7950F2'];
+            const activeColor = getTagColor(tag.name) || tagColor || fallbackColors[idx % fallbackColors.length];
+
+            return (
+              <div
+                key={tag.id || idx}
+                className="px-2 py-[2px] rounded-full border text-[10.5px] font-semibold tracking-tight transition-colors leading-tight"
+                style={{
+                  backgroundColor: `${activeColor}15`,
+                  borderColor: `${activeColor}40`,
+                  color: activeColor,
+                }}
+              >
+                <span>{tag.name}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showDocsBadge && (
+        <div
+          className={`flex items-center gap-1.5 mb-2.5 px-2 py-1 rounded-lg w-fit ${allDocsAccepted ? 'bg-[#E7F8ED]' : 'bg-[#FFF8E6]'
+            }`}
+        >
+          <File size={12} className={allDocsAccepted ? 'text-[#16A34A]' : 'text-[#E89B5A]'} strokeWidth={2} />
+          <span
+            className={`font-sans text-[11px] font-semibold ${allDocsAccepted ? 'text-[#16A34A]' : 'text-[#E89B5A]'
+              }`}
+          >
+            {acceptedDocs}/{totalDocs} tài liệu đã duyệt
+            {allDocsAccepted ? ' — sẵn sàng chuyển bước' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* 4. Đường kẻ phân cách — margin giảm */}
+      <div className="w-full h-px bg-[#EEEEEE] mb-2" />
+
+      {/* 5. Chân thẻ */}
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-1.5">
+          <Calendar size={12} className="text-[#888888]" strokeWidth={1.8} />
+          <span className="font-sans text-[11px] text-[#888888] font-medium tracking-wide">
+            {formatSubmittedAt(application.createdAt)}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1" title="Số ghi chú">
+            <MessageCircle size={12} className="text-[#888888]" strokeWidth={1.8} />
+            <span className="font-sans text-[11px] text-[#888888] font-semibold">
+              {application.notes?.length || 0}
+            </span>
+          </div>
+          <div className="flex items-center gap-1" title="Số nhãn">
+            <File size={12} className="text-[#888888]" strokeWidth={1.8} />
+            <span className="font-sans text-[11px] text-[#888888] font-semibold">
+              {displayTags.length}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+interface ApplicationCardProps {
+  application: AdoptionApplication;
+  isMoving: boolean;
+  showRedDot?: boolean;
+  showMenu?: boolean;
+  onOpenProfile: (app: AdoptionApplication) => void;
+  onOpenDetail: (app: AdoptionApplication) => void;
+  onCardClick: (app: AdoptionApplication) => void;
+  onRemove: (app: AdoptionApplication) => void;
+  onOpenDocuments: (app: AdoptionApplication) => void;
+  onOpenQuickView: (app: AdoptionApplication) => void;
+}
+
+export const ApplicationCard: React.FC<ApplicationCardProps> = ({
+  application,
+  isMoving,
+  showRedDot,
+  showMenu,
+  onOpenProfile,
+  onOpenDetail,
+  onCardClick,
+  onRemove,
+  onOpenDocuments,
+  onOpenQuickView
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: application.id,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    forcedColorAdjust: 'none' as const,
+    touchAction: 'none',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      tabIndex={-1}
+      onClick={() => onCardClick(application)}
+      className={`group bg-white rounded-[14px] w-full p-3 border border-[#EAEAEA] cursor-grab active:cursor-grabbing select-none focus:outline-none relative ${isDragging ? 'opacity-40 shadow-xl z-50' : 'z-10 hover:border-[#D1D1D1]'
+        } ${isMoving ? 'pointer-events-none opacity-60' : ''}`}
+    >
+      <ApplicationCardContent
+        application={application}
+        showRedDot={showRedDot}
+        showMenu={showMenu}
+        onOpenProfile={onOpenProfile}
+        onOpenDetail={onOpenDetail}
+        onRemove={onRemove}
+        onOpenDocuments={onOpenDocuments}
+      />
+    </div>
+  );
+};

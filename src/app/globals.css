@@ -1,0 +1,110 @@
+/* src/app/globals.css */
+@import 'tailwindcss';
+
+@theme {
+  /* --- CẤU HÌNH FONT CHỮ DUY NHẤT (BE VIETNAM PRO) --- */
+  --font-sans: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif);
+  --font-serif: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif);
+  --font-mono: var(--font-be-vietnam-pro, 'Be Vietnam Pro', monospace);
+
+  --font-poppins: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif);
+  --font-josefin: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif);
+  --font-inter: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif);
+  --font-roboto: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif);
+
+  /* --- BREAKPOINTS --- */
+  --breakpoint-2xsm: 375px;
+  --breakpoint-xsm: 425px;
+  --breakpoint-3xl: 2000px;
+
+  /* --- COLORS --- */
+  --color-coffee-primary: #c49b63;
+  --color-coffee-secondary: #1d150b;
+  --color-coffee-dark: #000000;
+  --color-coffee-light: #f5dece;
+
+  --color-brand-50: #ecf3ff;
+  --color-brand-100: #dde9ff;
+  --color-brand-400: #7592ff;
+  --color-brand-500: #465fff;
+  --color-brand-600: #3641f5;
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  html,
+  body,
+  input,
+  button,
+  select,
+  textarea {
+    font-family: var(--font-be-vietnam-pro, 'Be Vietnam Pro', sans-serif) !important;
+  }
+
+  body {
+    @apply relative font-sans font-light text-sm text-gray-700 antialiased bg-gray-50;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium text-gray-900;
+  }
+}
+
+/* --- UTILITIES & SCROLLBAR --- */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e4e7ec;
+  border-radius: 9999px;
+}
+
+/* --- THƯ VIỆN BÊN THỨ 3 (Dọn dẹp hoàn toàn @apply dark:) --- */
+.apexcharts-legend-text {
+  color: #344054 !important;
+}
+.apexcharts-text {
+  fill: #344054 !important;
+}
+.apexcharts-gridline {
+  stroke: #f2f4f7 !important;
+}
+
+.flatpickr-calendar {
+  margin-top: 0.5rem;
+  background-color: #ffffff !important;
+  border-radius: 0.75rem !important;
+  padding: 1.25rem !important;
+  border: 1px solid #e4e7ec !important;
+  color: #667085 !important;
+}
+
+.flatpickr-day.selected {
+  background-color: #465fff !important;
+  color: #ffffff !important;
+}
+
+.iphone-screen-3d button {
+  cursor: pointer;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
