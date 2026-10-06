@@ -1243,7 +1243,7 @@ const HeroBubble = ({
             className="relative h-full w-full select-none rounded-full object-cover ring-[5px] ring-white"
             initial={{ boxShadow: "0 18px 40px rgba(0,0,0,0.16)", x: 0, y: 0, rotate: 0 }}
             animate={
-              isHovered && !reduce
+              isHovered
                 ? { boxShadow: "0 6px 12px rgba(0,0,0,0.5)", x: [0, rnd.x, -rnd.x, 0], y: [0, rnd.y, -rnd.y, 0], rotate: [0, rnd.rot, -rnd.rot, 0] }
                 : { boxShadow: "0 18px 40px rgba(0,0,0,0.16)", x: 0, y: 0, rotate: 0 }
             }
@@ -1349,7 +1349,7 @@ const FeatureColumn = ({
   items: string[];
   checkColor: string;
 }) => (
-  <div className="flex-1 md:max-w-[300px] min-[1480px]:max-w-none">
+  <div className="h-full rounded-[20px] border border-[#F3F4F6] bg-white p-6 shadow-[0_10px_30px_rgba(0,0,0,0.03)]">
     <div style={{ display: "flex", gap: "12px", marginBottom: "16px", alignItems: "flex-start" }}>
       <div style={{ marginTop: "2px" }}>{icon}</div>
       <div>
@@ -1393,10 +1393,8 @@ const PetManagementSection = () => (
             loading="lazy"
             style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "32px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)" }}
           />
-          <motion.div
-            animate={{ y: [0, -12, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-[24px] right-[-10px] z-10 w-[190px] sm:bottom-[30px] sm:right-[-30px] sm:w-[210px]"
+          <div
+            className="pet-float-card absolute bottom-[24px] right-[-8px] z-10 w-[190px] sm:bottom-[30px] sm:right-[-16px] sm:w-[210px]"
             style={{ backgroundColor: "#fff", padding: "20px 22px", borderRadius: "24px", boxShadow: "0 15px 40px rgba(0,0,0,0.08)" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
@@ -1412,7 +1410,7 @@ const PetManagementSection = () => (
             <div style={{ height: "1px", backgroundColor: COLOR.line, margin: "12px 0" }} />
             <div style={{ fontSize: "10px", fontWeight: 700, color: COLOR.faint, marginBottom: "4px", letterSpacing: "0.5px" }}>GHI CHÚ</div>
             <div style={{ fontSize: "13px", color: COLOR.ink, fontWeight: 600, lineHeight: 1.4 }}>Hiền lành, nhưng hơi nhát người lạ</div>
-          </motion.div>
+          </div>
         </motion.div>
 
         <motion.div
@@ -1450,13 +1448,13 @@ const PetManagementSection = () => (
         </motion.div>
       </div>
 
-      <div className="z-[1] w-full max-w-[860px] min-[1480px]:absolute min-[1480px]:left-[calc(50%+460px)] min-[1480px]:top-1/2 min-[1480px]:w-[260px] min-[1480px]:max-w-none min-[1480px]:-translate-y-1/2">
+      <div className="w-full max-w-[860px]">
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="flex w-full flex-col gap-[36px] px-2 md:flex-row md:justify-center md:gap-[60px] min-[1480px]:flex-col min-[1480px]:justify-start min-[1480px]:gap-[36px] min-[1480px]:px-0"
+          className="grid grid-cols-1 gap-6 md:grid-cols-2"
         >
           <FeatureColumn
             icon={<Icons.Bell />}
@@ -1843,24 +1841,23 @@ const PartnerLogosSection = () => (
     className="mt-[60px] flex w-full flex-col items-center overflow-hidden px-4"
   >
     <style>{`
-      @keyframes infinite-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-      .logo-track { display: flex; width: max-content; animation: infinite-scroll 28s linear infinite; }
-      .logo-track:hover { animation-play-state: paused; }
-      @media (prefers-reduced-motion: reduce) { .logo-track { animation: none; } }
-    `}</style>
+  @keyframes infinite-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+  .logo-track { display: flex; width: max-content; animation: infinite-scroll 25s linear infinite; }
+  .logo-track:hover { animation-play-state: paused; }
+`}</style>
     <SectionHeading eyebrow="Đối tác đồng hành" title="Mạng lưới kết nối của PawLife" mb={44} />
 
     <div className="relative w-full max-w-[1200px] overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute left-0 top-0 z-10 h-full w-[50px] bg-gradient-to-r from-white to-transparent lg:w-[150px]" />
       <div aria-hidden className="pointer-events-none absolute right-0 top-0 z-10 h-full w-[50px] bg-gradient-to-l from-white to-transparent lg:w-[150px]" />
-      <ul className="logo-track items-center gap-[40px] py-[20px] lg:gap-[80px]" style={{ listStyle: "none", margin: 0, padding: "20px 0" }}>
+      <ul className="logo-track items-center" style={{ listStyle: "none", margin: 0, padding: "20px 0" }}>
         {[0, 1].map((copy) => (
           <React.Fragment key={copy}>
             {MOCK_PARTNERS.map((p) => (
               <li
                 key={`${copy}-${p.name}`}
                 aria-hidden={copy === 1}
-                className="flex cursor-pointer items-center gap-[12px] opacity-50 grayscale transition-all duration-300 hover:opacity-100 hover:grayscale-0"
+                className="mr-[40px] flex cursor-pointer items-center gap-[12px] opacity-50 grayscale transition-all duration-300 hover:opacity-100 hover:grayscale-0 lg:mr-[80px]"
               >
                 <div style={{ width: "48px", height: "48px", borderRadius: "12px", backgroundColor: `${p.color}20`, display: "flex", justifyContent: "center", alignItems: "center" }}>
                   <span style={{ color: p.color, fontWeight: 900, fontSize: "20px", fontFamily: FONT_HEAD }}>{p.name.charAt(0)}</span>
@@ -2049,12 +2046,22 @@ export default function HomePage() {
   return (
     <div style={{ backgroundColor: "#fff", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflowX: "clip", position: "relative" }}>
       <style>{`
-        html { scroll-behavior: smooth; }
-        section[id], footer[id] { scroll-margin-top: ${HEADER_HEIGHT + 8}px; }
-        @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-        a:focus-visible, button:focus-visible { outline: 2px solid ${COLOR.brand}; outline-offset: 3px; border-radius: 8px; }
-        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-      `}</style>
+  html { scroll-behavior: smooth; }
+  section[id], footer[id] { scroll-margin-top: ${HEADER_HEIGHT + 8}px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  a:focus-visible, button:focus-visible { outline: 2px solid ${COLOR.brand}; outline-offset: 3px; border-radius: 8px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  @keyframes pet-float {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50%      { transform: translate3d(0, -12px, 0); }
+  }
+  .pet-float-card {
+    animation: pet-float 4s ease-in-out infinite;
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+`}</style>
 
       <MagicCursorCanvas />
       <CuteCursor />
