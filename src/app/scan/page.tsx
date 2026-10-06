@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { X, ChevronLeft, EyeOff, Phone } from 'lucide-react';
 import axiosClient from '@/lib/api/axiosClient';
-import { displayBilingual, parseBilingual } from '@/utils/bilingualField';
+import { showText, formatBreed } from '@/utils/bilingualField';
 
 // =====================================================================
 // 1. INLINE MODALS (Tích hợp sẵn để không cần import file ngoài)
@@ -160,19 +160,16 @@ const ImageViewerOverlay = ({ images, isVisible, initialIndex = 0, onClose }: { 
 };
 
 // =====================================================================
-// 3. MAIN COMPONENT (ScannedPetScreen)
+// 3. MAIN COMPONENT (ScannedPetContent) -> Chứa Logic dùng hook useSearchParams
 // =====================================================================
 
-export default function ScannedPetScreen() {
+function ScannedPetContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tagId = searchParams.get('tagId');
 
-  // Đã bỏ LanguageContext, fix cứng tiếng Việt
-  const isVi = true;
-
-  // Đã bỏ AuthContext, mặc định người dùng trên web là khách (không phải owner)
-  const isOwner = false;
+  const isVi = true; // Mặc định hiển thị tiếng Việt
+  const isOwner = false; // Quét từ web mặc định là người lạ
 
   const [pet, setPet] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -365,9 +362,7 @@ export default function ScannedPetScreen() {
   const displayOwnerAddress = pet?.owner?.address || 'Chưa cung cấp địa chỉ';
 
   const rawNote = pet?.lostInfo?.note || pet?.note;
-  const displayNote = rawNote
-    ? (typeof rawNote === 'object' ? displayBilingual(parseBilingual(rawNote), isVi) : rawNote)
-    : 'Vui lòng liên hệ tôi sớm nhất';
+  const displayNote = rawNote ? showText(rawNote) : 'Vui lòng liên hệ tôi sớm nhất';
 
   if (isContentBlocked) {
     return (
@@ -419,7 +414,7 @@ export default function ScannedPetScreen() {
                 <div className="absolute bottom-0 left-0 right-0 mb-[26px] flex flex-col items-center z-20 pointer-events-none">
                   <span className="text-white text-[24px] font-bold text-center capitalize mb-2">{pet?.name?.toLowerCase() || 'thú cưng'}</span>
                   <span className="text-white text-[14px] font-normal text-center tracking-[0.5px]">
-                    {displayAge} • {displayBilingual(parseBilingual(pet?.breed), isVi) || 'Không rõ giống'}
+                    {displayAge} • {formatBreed(pet?.breed) || 'Không rõ giống'}
                   </span>
                 </div>
                 {displayImages.length > 1 && (
@@ -504,13 +499,13 @@ export default function ScannedPetScreen() {
                   </div>
                   <div className="w-1/2">
                     <p className="font-medium text-[16px] mb-[12.5px]">Giống</p>
-                    <p className="text-[#8E8E93] font-normal text-[14px]">{displayBilingual(parseBilingual(pet.breed), isVi) || 'Không rõ'}</p>
+                    <p className="text-[#8E8E93] font-normal text-[14px]">{formatBreed(pet.breed) || 'Không rõ'}</p>
                   </div>
                 </div>
                 <div className="flex flex-row justify-between items-center gap-2">
                   <div className="w-1/2">
                     <p className="font-medium text-[16px] mb-[12.5px]">Màu sắc</p>
-                    <p className="text-[#8E8E93] font-normal text-[14px] capitalize">{displayBilingual(parseBilingual(pet.color), isVi)?.toLowerCase() || 'Không rõ'}</p>
+                    <p className="text-[#8E8E93] font-normal text-[14px] capitalize">{showText(pet.color)?.toLowerCase() || 'Không rõ'}</p>
                   </div>
                   <div className="w-1/2">
                     <p className="font-medium text-[16px] mb-[12.5px]">Ngày sinh</p>
@@ -595,5 +590,22 @@ export default function ScannedPetScreen() {
         onConfirm={handleShareLocation}
       />
     </div>
+  );
+}
+
+// =====================================================================
+// 4. SUSPENSE WRAPPER (Để vượt qua lỗi build của Next.js SSR)
+// =====================================================================
+
+export default function ScannedPetScreen() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen max-w-[500px] mx-auto bg-white flex flex-col items-center justify-center shadow-md">
+        <div className="border-4 border-[#ffa053] border-t-transparent rounded-full w-10 h-10 animate-spin"></div>
+        <p className="text-gray-500 font-medium mt-4">Đang tải...</p>
+      </div>
+    }>
+      <ScannedPetContent />
+    </Suspense>
   );
 }
