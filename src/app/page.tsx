@@ -1,5 +1,4 @@
 import React from "react";
-import "./style.css";
 
 // ============================================================================
 // 1. DỮ LIỆU TĨNH (MOCK_DATA) - Tách toàn bộ data rác ra khỏi UI
