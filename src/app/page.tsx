@@ -20,10 +20,8 @@ import Link from "next/link";
 // 0. CẤU HÌNH & HẰNG SỐ
 // ============================================================================
 const IOS_APP_URL = "https://apps.apple.com/vn/app/REPLACE_WITH_REAL_LINK";
-// Google Play: chưa có -> để null thì nút hiển thị "Sắp ra mắt"
 const ANDROID_APP_URL: string | null = null;
 
-// Đổi lại cho khớp với route thật của dự án
 const ROUTES = {
   scan: "/scan",
   qrShop: "/the-qr",
@@ -238,7 +236,6 @@ const FAQS = [
   },
 ];
 
-// Tên đối tác mang tính minh họa — thay bằng đối tác thật khi có
 const MOCK_PARTNERS = [
   { name: "Thú Y Việt Pet", color: "#3B82F6" },
   { name: "Sài Gòn Pet Care", color: "#10B981" },
@@ -982,7 +979,7 @@ const HeaderSection = () => {
         />
 
         <div
-          className="relative mx-auto flex w-full max-w-[1200px] items-center justify-between px-4 lg:px-6"
+          className="relative mx-auto flex w-full max-w-[1440px] items-center justify-between px-4 lg:px-10 xl:px-16"
           style={{ paddingTop: scrolled ? "10px" : "20px", paddingBottom: "10px", transition: "padding 0.35s ease" }}
         >
           <BrandLogo size={32} fontSize={20} />
@@ -993,7 +990,7 @@ const HeaderSection = () => {
                 {l.label}
               </motion.a>
             ))}
-            <ButtonLink href="#download" size="sm" variant="primary">Tải app</ButtonLink>
+            <ButtonLink href="#download" size="sm" variant="primary">Liên hệ</ButtonLink>
           </nav>
 
           <button
@@ -1058,78 +1055,122 @@ const HeaderSection = () => {
 };
 
 // ----------------------------------------------------------------------------
-//  HERO
+//  HERO (Cập nhật giống hệt thiết kế 3 cột)
 // ----------------------------------------------------------------------------
 const HeroSection = () => (
   <section
     id="top"
     aria-labelledby="hero-title"
-    className="relative z-10 mx-auto mt-[20px] flex h-auto min-h-[600px] w-full max-w-[1200px] flex-col items-center justify-between overflow-hidden px-4 pb-16 lg:mt-[30px] lg:h-[calc(100vh-120px)] lg:flex-row lg:px-6 lg:pb-0"
+    className="relative z-10 mx-auto mt-0 lg:mt-[10px] flex min-h-[600px] w-full max-w-[1440px] flex-col items-center justify-between overflow-visible px-4 pb-16 lg:h-[calc(100vh-140px)] lg:max-h-[850px] lg:flex-row lg:items-center lg:px-10 xl:px-16 lg:pb-0"
   >
+    {/* Grid Background mờ */}
     <div
       aria-hidden
       className="pointer-events-none absolute inset-0 z-[-1]"
       style={{
         backgroundImage: "linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)",
-        backgroundSize: "100px 100px",
+        backgroundSize: "80px 80px",
         maskImage: "radial-gradient(ellipse at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 80%)",
         WebkitMaskImage: "radial-gradient(ellipse at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 80%)",
       }}
     />
 
+    {/* Cột 1: Thông điệp (Desktop Only) */}
     <motion.div
-      initial={{ opacity: 0, x: -50 }}
+      initial={{ opacity: 0, x: -30 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.8 }}
-      className="relative z-10 flex w-full flex-col items-start pt-10 lg:w-1/2 lg:pt-0"
+      className="hidden w-full flex-col items-start pr-6 lg:flex lg:w-[26%]"
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#fff", padding: "10px 20px", borderRadius: "999px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)", border: `1px solid ${COLOR.line}`, width: "fit-content" }}>
-        <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#10B981" }} aria-hidden />
-        <span style={{ fontSize: "13px", fontWeight: 600, color: COLOR.body, fontFamily: FONT_BODY }}>
+      <p style={{ fontSize: "14px", fontWeight: 700, color: COLOR.ink, fontFamily: FONT_HEAD, marginBottom: "20px" }}>
+        Ủng hộ nhận nuôi chó mèo
+      </p>
+      <h2 style={{ fontSize: "clamp(32px, 3.2vw, 44px)", fontWeight: 800, lineHeight: 1.2, fontFamily: FONT_HEAD, letterSpacing: "-1px", marginBottom: "20px" }}>
+        <span style={{ color: COLOR.purple }}>Nhận nuôi</span>
+        <br />
+        <span style={{ color: COLOR.ink }}>cùng PawLife</span>
+      </h2>
+      <p style={{ fontSize: "14px", color: COLOR.ink, lineHeight: 1.6, fontFamily: FONT_BODY, fontWeight: 500, marginBottom: "40px" }}>
+        Một bé thú cưng không chỉ cần một nơi để ở, mà cần một người hiểu, chăm sóc và sẵn sàng đồng hành trong những năm tháng phía trước. Hãy nhận nuôi có trách nhiệm vì mỗi sinh mạng đều đáng quý.
+      </p>
+      <a
+        href="#download"
+        style={{ fontSize: "15px", fontWeight: 700, color: COLOR.ink, fontFamily: FONT_HEAD, textDecoration: "none" }}
+        className="transition-colors hover:text-[#F09E5B]"
+      >
+        Tải app PawLife
+      </a>
+    </motion.div>
+
+    {/* Cột 2: Nội dung chính */}
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay: 0.1 }}
+      className="relative z-10 flex w-full flex-col items-start pt-2 lg:w-[44%] lg:pt-0"
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#fff", padding: "8px 18px", borderRadius: "999px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", border: `1px solid ${COLOR.line}`, width: "fit-content", marginBottom: "32px" }}>
+        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10B981" }} aria-hidden />
+        <span style={{ fontSize: "12px", fontWeight: 700, color: COLOR.muted, fontFamily: FONT_HEAD }}>
           Hơn 1.200 gia đình đã tìm thấy người bạn bốn chân
         </span>
       </div>
 
       <h1
         id="hero-title"
-        style={{ fontSize: "clamp(40px, 5.6vw, 76px)", fontWeight: 900, lineHeight: 1.1, fontFamily: FONT_HEAD, marginTop: "36px", letterSpacing: "-2px" }}
+        style={{ fontSize: "clamp(46px, 5vw, 68px)", fontWeight: 900, lineHeight: 1.05, fontFamily: FONT_HEAD, letterSpacing: "-1.5px", marginBottom: "24px" }}
       >
         <span style={{ color: COLOR.purple }}>Đừng mua.</span>
         <br />
         <span style={{ color: COLOR.ink }}>Hãy nhận nuôi.</span>
       </h1>
 
-      <p style={{ marginTop: "28px", fontSize: "18px", color: COLOR.muted, maxWidth: "480px", lineHeight: 1.6, fontFamily: FONT_BODY, fontWeight: 500 }}>
+      <p style={{ fontSize: "14px", color: COLOR.muted, maxWidth: "440px", lineHeight: 1.7, fontFamily: FONT_BODY, fontWeight: 500, marginBottom: "40px" }}>
         Mỗi bé thú cưng đều xứng đáng có một mái ấm. Hãy tìm người bạn đồng hành phù hợp và trao cho bé cuộc sống mà bé xứng đáng có.
       </p>
 
-      <div className="mt-10 flex flex-wrap gap-4 lg:mt-12">
-        <ButtonLink href="#adopt" variant="primary" size="lg">Tìm người bạn của bạn</ButtonLink>
-        <ButtonLink href="#about" variant="white" size="lg">Tìm hiểu thêm</ButtonLink>
+      {/* Buttons chuẩn form viên nhộng (Pill shape) */}
+      <div className="mb-14 flex flex-wrap gap-4">
+        <Link
+          href="#adopt"
+          className="inline-flex items-center justify-center transition hover:-translate-y-0.5 active:scale-95"
+          style={{ backgroundColor: COLOR.brand, color: "#fff", padding: "14px 28px", borderRadius: "999px", fontSize: "14px", fontWeight: 700, fontFamily: FONT_BODY, textDecoration: "none", boxShadow: "0 10px 25px rgba(240,158,91,0.3)" }}
+        >
+          Tìm người bạn của bạn
+        </Link>
+        <Link
+          href="#about"
+          className="inline-flex items-center justify-center transition hover:-translate-y-0.5 active:scale-95"
+          style={{ backgroundColor: "#fff", color: COLOR.ink, padding: "14px 28px", borderRadius: "999px", fontSize: "14px", fontWeight: 700, fontFamily: FONT_BODY, textDecoration: "none", border: `1px solid ${COLOR.border}`, boxShadow: "0 4px 15px rgba(0,0,0,0.03)" }}
+        >
+          Tìm hiểu thêm
+        </Link>
       </div>
 
-      <dl className="mb-5 mt-12 flex flex-wrap gap-x-12 gap-y-6 lg:mt-14 lg:gap-x-14">
+      {/* Stats */}
+      <dl className="flex w-full max-w-[440px] items-center justify-between gap-4">
         {HERO_STATS.map((s) => (
-          <div key={s.label}>
+          <div key={s.label} className="flex flex-col items-start">
             <dt className="sr-only">{s.label}</dt>
-            <dd style={{ fontSize: "28px", fontWeight: 900, color: COLOR.ink, fontFamily: FONT_HEAD, margin: 0 }}>{s.value}</dd>
-            <div aria-hidden style={{ fontSize: "14px", color: COLOR.muted, marginTop: "6px", fontWeight: 500, fontFamily: FONT_BODY }}>{s.label}</div>
+            <dd style={{ fontSize: "26px", fontWeight: 900, color: COLOR.ink, fontFamily: FONT_HEAD, margin: 0 }}>{s.value}</dd>
+            <div aria-hidden style={{ fontSize: "11px", color: COLOR.muted, marginTop: "6px", fontWeight: 600, fontFamily: FONT_BODY }}>{s.label}</div>
           </div>
         ))}
       </dl>
     </motion.div>
 
+    {/* Cột 3: Hình bé cún */}
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0, scale: 0.9, x: 30 }}
+      animate={{ opacity: 1, scale: 1, x: 0 }}
       transition={{ duration: 0.8, delay: 0.2 }}
-      className="relative z-10 flex h-[45vh] min-h-[350px] w-full items-end justify-center lg:h-full lg:max-h-[calc(100vh-150px)] lg:w-1/2 lg:justify-end"
+      className="relative z-10 mt-12 flex h-[35vh] min-h-[300px] w-full items-center justify-center lg:mt-0 lg:h-full lg:w-[30%] lg:justify-end"
     >
       <img
         src="/assets/piglet.png"
-        alt="Chú chó lông trắng bông xù đang ngồi mỉm cười"
-        className="h-full max-h-[100%] w-full origin-bottom translate-y-[5%] scale-110 object-contain"
-        style={{ filter: "drop-shadow(0 30px 40px rgba(0,0,0,0.1))" }}
+        alt="Thú cưng đang chờ nhận nuôi"
+        className="h-full w-full object-contain"
+        style={{ filter: "drop-shadow(0 30px 40px rgba(0,0,0,0.12))", transform: "scale(1.3) translateY(2%)" }}
       />
     </motion.div>
 
@@ -1203,7 +1244,6 @@ const HeroBubble = ({
   const py = useTransform(mouseY, (v: number) => v * b.depth);
   const y = useTransform([scrollY, py], (v: number[]) => v[0] + v[1]);
 
-  // Biên độ ngẫu nhiên khi hover (dịch 10-15px, xoay 5-15 độ)
   const rnd = useMemo(
     () => ({
       x: (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 5 + 10),
