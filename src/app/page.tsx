@@ -1080,7 +1080,7 @@ const HeroSection = () => (
       initial={{ opacity: 0, x: -30 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.8 }}
-      className="hidden w-full flex-col items-start pr-6 lg:flex lg:w-[26%]"
+      className="flex w-full flex-col items-start pr-0 pt-6 mb-12 lg:pt-0 lg:mb-0 lg:pr-6 lg:w-[26%]"
     >
       <p style={{ fontSize: "14px", fontWeight: 700, color: COLOR.ink, fontFamily: FONT_HEAD, marginBottom: "20px" }}>
         Ủng hộ nhận nuôi chó mèo
@@ -1107,7 +1107,7 @@ const HeroSection = () => (
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.1 }}
-      className="relative z-10 flex w-full flex-col items-start pt-2 lg:w-[44%] lg:pt-0"
+      className="relative z-10 flex w-full flex-col items-start pt-8 lg:w-[44%] lg:pt-0"
     >
       <div style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#fff", padding: "8px 18px", borderRadius: "999px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", border: `1px solid ${COLOR.line}`, width: "fit-content", marginBottom: "32px" }}>
         <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10B981" }} aria-hidden />
@@ -1118,7 +1118,7 @@ const HeroSection = () => (
 
       <h1
         id="hero-title"
-        style={{ fontSize: "clamp(46px, 5vw, 68px)", fontWeight: 900, lineHeight: 1.05, fontFamily: FONT_HEAD, letterSpacing: "-1.5px", marginBottom: "24px" }}
+        style={{ fontSize: "clamp(36px, 8vw, 68px)", fontWeight: 900, lineHeight: 1.05, fontFamily: FONT_HEAD, letterSpacing: "-1.5px", marginBottom: "24px" }}
       >
         <span style={{ color: COLOR.purple }}>Đừng mua.</span>
         <br />
