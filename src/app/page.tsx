@@ -67,7 +67,7 @@ const NAV_LINKS = [
   { label: "Trang chủ", href: "#top" },
   { label: "Về chúng tôi", href: "#about" },
   { label: "Thẻ QR", href: "#qr" },
-  { label: "Nhận nuôi", href: "#adopt" },
+  { label: "Nhận nuôi", href: ROUTES.pets },
   { label: "Trạm cứu hộ", href: "#shelters" },
   { label: "Hỏi đáp", href: "#faq" },
 ];
@@ -964,11 +964,13 @@ const HeaderSection = () => {
           <BrandLogo size={32} fontSize={20} />
 
           <nav aria-label="Điều hướng chính" className="hidden items-center gap-8 lg:flex">
-            {NAV_LINKS.map((l) => (
-              <motion.a key={l.href} href={l.href} whileHover={{ y: -1, color: COLOR.brand }} style={linkStyle}>
-                {l.label}
-              </motion.a>
-            ))}
+            {NAV_LINKS.map((l) =>
+              l.href.startsWith("/") ? (
+                <Link key={l.href} href={l.href} style={linkStyle} className="transition-colors hover:text-[#F09E5B]">{l.label}</Link>
+              ) : (
+                <motion.a key={l.href} href={l.href} whileHover={{ y: -1, color: COLOR.brand }} style={linkStyle}>{l.label}</motion.a>
+              ),
+            )}
             <ButtonLink href="#download" size="sm" variant="primary">Liên hệ</ButtonLink>
           </nav>
 
@@ -1014,14 +1016,10 @@ const HeaderSection = () => {
             }}
           >
             {NAV_LINKS.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={() => setMenuOpen(false)}
-                style={{ ...linkStyle, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}
-              >
+              <Link key={l.href} href={l.href} onClick={() => setMenuOpen(false)}
+                style={{ ...linkStyle, padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                 {l.label}
-              </a>
+              </Link>
             ))}
             <div className="mt-3">
               <ButtonLink href="#download" variant="primary" className="w-full">Tải app PawLife</ButtonLink>
@@ -1111,7 +1109,7 @@ const HeroSection = () => (
       {/* Buttons chuẩn form viên nhộng (Pill shape) */}
       <div className="mb-14 flex flex-wrap gap-4">
         <Link
-          href="#adopt"
+          href={ROUTES.pets}
           className="inline-flex items-center justify-center transition hover:-translate-y-0.5 active:scale-95"
           style={{ backgroundColor: COLOR.brand, color: "#fff", padding: "14px 28px", borderRadius: "999px", fontSize: "14px", fontWeight: 700, fontFamily: FONT_BODY, textDecoration: "none", boxShadow: "0 10px 25px rgba(240,158,91,0.3)" }}
         >
@@ -1609,6 +1607,7 @@ const AdoptionSection = () => {
           </article>
         </Carousel>
         <CarouselControls total={pets!.length} current={index} onChange={setIndex} onPrev={prev} onNext={next} label="Thú cưng" />
+        <div className="mt-6 flex justify-center"><ButtonLink href={ROUTES.pets} variant="outline" size="sm">Xem tất cả các bé</ButtonLink></div>
       </motion.div>
       {applyPet && <AdoptionFormModal pet={{ id: applyPet.id, name: applyPet.name, shelterName: applyPet.shelter }} onClose={() => setApplyPet(null)} />}
     </section>
@@ -1942,7 +1941,7 @@ const FooterSection = () => {
         <nav aria-label="Liên kết chân trang" className="mt-[10px] flex w-full flex-col gap-[48px] sm:flex-row lg:mt-[85px] lg:w-auto lg:gap-[100px] lg:pr-[60px]">
           <div className="flex flex-col gap-[18px]">
             <a href="#about" style={linkStyle}>Về chúng tôi</a>
-            <a href="#adopt" style={linkStyle}>Nhận nuôi</a>
+            <Link href={ROUTES.pets} style={linkStyle}>Nhận nuôi</Link>
             <a href="#qr" style={linkStyle}>Cách hoạt động</a>
           </div>
           <div className="flex flex-col gap-[18px]">
