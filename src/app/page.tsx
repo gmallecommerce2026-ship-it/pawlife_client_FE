@@ -15,6 +15,8 @@ import {
   MotionValue,
 } from "framer-motion";
 import Link from "next/link";
+import axiosClient from "@/lib/api/axiosClient";
+import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
 
 // ============================================================================
 // 0. CẤU HÌNH & HẰNG SỐ
@@ -87,52 +89,29 @@ const ABOUT_STATS = [
 ];
 
 type Tag = { label: string; color: string; bg: string };
-type Pet = {
-  name: string;
-  gender: "Male" | "Female";
-  info: string;
-  desc: string;
-  img: string;
-  tags: Tag[];
-};
+type Pet = { id: string; name: string; gender: "Male" | "Female" | "Unknown"; info: string; desc: string; img: string; shelter?: string | null; tags: Tag[] };
 
-const MOCK_ADOPTIONS: Pet[] = [
-  {
-    name: "Mực",
-    gender: "Male",
-    info: "4 tuổi • Husky Siberia",
-    desc: "Mực có đôi mắt xanh rất cuốn hút, thông minh và trung thành. Bé thích những buổi đi dạo dài vào sáng sớm, hợp với gia đình có trẻ nhỏ và cần một không gian đủ rộng để vận động mỗi ngày.",
-    img: "https://images.unsplash.com/photo-1547407139-3c921a66005c?auto=format&fit=crop&w=800&q=80",
-    tags: [
-      { label: "Đã triệt sản", color: "#16A34A", bg: "#DCFCE7" },
-      { label: "Tinh nghịch", color: "#2563EB", bg: "#DBEAFE" },
-      { label: "Thân thiện với trẻ em", color: "#A16207", bg: "#FEF9C3" },
-    ],
-  },
-  {
-    name: "Bông",
-    gender: "Female",
-    info: "2 tuổi • Golden Retriever",
-    desc: "Bông hiền và rất quấn người. Bé thích chơi bóng, nằm cạnh sofa mỗi tối và hòa đồng với cả chó mèo khác. Bông đang tìm một gia đình yêu thương để gắn bó lâu dài.",
-    img: "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=800&q=80",
-    tags: [
-      { label: "Đã tiêm phòng", color: "#16A34A", bg: "#DCFCE7" },
-      { label: "Thân thiện", color: "#2563EB", bg: "#DBEAFE" },
-      { label: "Biết đi vệ sinh đúng chỗ", color: "#A16207", bg: "#FEF9C3" },
-    ],
-  },
-  {
-    name: "Cu Tí",
-    gender: "Male",
-    info: "1 tuổi • Beagle lai",
-    desc: "Cu Tí tò mò và tràn đầy năng lượng, thích khám phá mọi ngóc ngách trong nhà. Bé đang học các lệnh cơ bản và sẽ phát triển rất tốt nếu gặp người chủ kiên nhẫn huấn luyện.",
-    img: "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&w=800&q=80",
-    tags: [
-      { label: "Đã gắn microchip", color: "#16A34A", bg: "#DCFCE7" },
-      { label: "Năng động", color: "#2563EB", bg: "#DBEAFE" },
-    ],
-  },
-];
+const TAG_COLORS = [{ color: "#16A34A", bg: "#DCFCE7" }, { color: "#2563EB", bg: "#DBEAFE" }, { color: "#A16207", bg: "#FEF9C3" }];
+const ageOf = (dob?: string | null) => {
+  if (!dob) return "Chưa rõ";
+  const m = Math.max(0, (Date.now() - new Date(dob).getTime()) / 2629800000);
+  const y = Math.floor(m / 12);
+  return y > 0 ? `${y} tuổi` : m >= 1 ? `${Math.floor(m)} tháng tuổi` : "Sơ sinh";
+};
+const toCard = (p: any): Pet => ({
+  id: p.id,
+  name: p.name,
+  gender: /^f/i.test(p.gender || "") ? "Female" : /^m/i.test(p.gender || "") ? "Male" : "Unknown",
+  info: `${ageOf(p.dob)} • ${p.breed || "Chưa rõ giống"}`,
+  desc: p.description || "Bé đang chờ một mái ấm yêu thương.",
+  img: p.image || "/assets/piglet.png",
+  shelter: p.shelterName,
+  tags: [
+    ...(p.isSpayedNeutered ? [{ label: "Đã triệt sản" }] : []),
+    ...(p.isVaccinated ? [{ label: "Đã tiêm phòng" }] : []),
+    ...(p.traits || []).slice(0, 2).map((label: string) => ({ label })),
+  ].slice(0, 3).map((t, i) => ({ ...t, ...TAG_COLORS[i % 3] })),
+});
 
 type Shelter = {
   name: string;
@@ -1551,8 +1530,24 @@ const PetManagementSection = () => (
 //  NHẬN NUÔI
 // ----------------------------------------------------------------------------
 const AdoptionSection = () => {
-  const { index, setIndex, next, prev } = useCarousel(MOCK_ADOPTIONS.length);
-  const pet = MOCK_ADOPTIONS[index];
+  const [pets, setPets] = useState<Pet[] | null>(null);
+  const [applyPet, setApplyPet] = useState<Pet | null>(null);
+  useEffect(() => {
+    axiosClient.get("/public/pets", { params: { limit: 12 } })
+      .then((r) => setPets((r.data?.data ?? []).map(toCard)))
+      .catch(() => setPets([]));
+  }, []);
+  const { index, setIndex, next, prev } = useCarousel(pets?.length || 1);
+  const pet = pets?.[index];
+
+  if (!pet) {
+    return (
+      <section id="adopt" className="mt-[100px] flex w-full flex-col items-center px-4 lg:mt-[160px] lg:px-0" style={{ fontFamily: FONT_HEAD }}>
+        <SectionHeading eyebrow="Nhận nuôi cùng PawLife" title="Tô điểm sắc màu cho một sinh mạng" />
+        <p style={{ color: COLOR.muted }}>{pets === null ? "Đang tải..." : "Hiện chưa có bé nào đang chờ nhận nuôi."}</p>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -1588,7 +1583,7 @@ const AdoptionSection = () => {
             <div className="flex w-full flex-col p-[28px] lg:w-1/2 lg:p-[44px_40px]">
               <motion.div key={`title-${pet.name}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                 <h3 style={{ fontSize: "24px", fontWeight: 700, color: COLOR.ink, margin: 0 }}>{pet.name}</h3>
-                {pet.gender === "Male" ? <Icons.Male /> : <Icons.Female />}
+                {pet.gender === "Male" ? <Icons.Male /> : pet.gender === "Female" ? <Icons.Female /> : null}
               </motion.div>
               <motion.p key={`info-${pet.name}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.1 }} style={{ fontSize: "13px", color: COLOR.muted, marginBottom: "18px", fontWeight: 500 }}>
                 {pet.info}
@@ -1604,14 +1599,18 @@ const AdoptionSection = () => {
                 ))}
               </div>
               <div className="mt-[28px] flex flex-col gap-3 sm:flex-row">
-                <ButtonLink href={ROUTES.pets} variant="primary" className="flex-1">Xem thêm về {pet.name}</ButtonLink>
-                <ButtonLink href={ROUTES.pets} variant="outline" className="flex-1">Đăng ký nhận nuôi</ButtonLink>
+                <ButtonLink href={`${ROUTES.pets}/${pet.id}`} variant="primary" className="flex-1">Xem thêm về {pet.name}</ButtonLink>
+                <button type="button" onClick={() => setApplyPet(pet)} className="inline-flex flex-1 items-center justify-center transition hover:-translate-y-0.5 active:scale-[0.97]"
+                  style={{ ...BUTTON_STYLES.outline, padding: "13px 20px", fontSize: 14, fontWeight: 700, borderRadius: 12, fontFamily: FONT_BODY, cursor: "pointer" }}>
+                  Đăng ký nhận nuôi
+                </button>
               </div>
             </div>
           </article>
         </Carousel>
-        <CarouselControls total={MOCK_ADOPTIONS.length} current={index} onChange={setIndex} onPrev={prev} onNext={next} label="Thú cưng" />
+        <CarouselControls total={pets!.length} current={index} onChange={setIndex} onPrev={prev} onNext={next} label="Thú cưng" />
       </motion.div>
+      {applyPet && <AdoptionFormModal pet={{ id: applyPet.id, name: applyPet.name, shelterName: applyPet.shelter }} onClose={() => setApplyPet(null)} />}
     </section>
   );
 };
