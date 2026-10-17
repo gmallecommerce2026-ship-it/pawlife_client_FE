@@ -200,7 +200,19 @@ export default function PublicPetDetailPage({ params }: { params: Promise<{ id: 
         Đăng ký nhận nuôi {pet.name}
       </button>
 
-      {applying && <AdoptionFormModal pet={{ id: pet.id, name: pet.name, shelterName: pet.shelter?.name }} onClose={() => setApplying(false)} />}
+      {applying && (
+        <AdoptionFormModal 
+          pet={{ 
+            id: pet.id, 
+            name: pet.name, 
+            shelterName: pet.shelter?.name,
+            avatarUrl: main || undefined,      // Lấy ảnh đã tính toán sẵn ở biến main
+            ageLabel: ageLabel(pet.dob),       // Lấy label tuổi đã convert
+            breed: show(pet.breed)             // Lấy tên giống loài đã convert
+          }} 
+          onClose={() => setApplying(false)} 
+        />
+      )}
     </div>
   );
 }

@@ -2,15 +2,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axiosClient from '@/lib/api/axiosClient';
+import { PawPrint } from 'lucide-react';
 
 type Opt = [string, string]; // [giá trị gửi BE (EN), nhãn hiển thị (VI)]
-const HOUSING: Opt[] = [['House','Nhà riêng'],['House with a garden','Nhà có sân vườn'],['Apartment (allows pet ownership)','Căn hộ (cho phép nuôi thú cưng)'],['Apartment (pets not allowed, but willing to keep a pet discreetly)','Căn hộ (không cho phép nhưng vẫn muốn nuôi)'],['Rented house','Nhà thuê'],['Other','Khác']];
-const EXP: Opt[] = [['Yes, I used to have one','Có, tôi đã từng nuôi'],['My pet is still living with me now','Thú cưng vẫn đang sống cùng tôi'],["No, I haven't",'Chưa bao giờ']];
-const JOB: Opt[] = [['Currently employed','Đang đi làm'],['Currently employed (occasionally travels for work)','Đang đi làm (thỉnh thoảng công tác)'],['Currently employed (frequently travels for work)','Đang đi làm (thường xuyên công tác)'],['Self-employed','Tự kinh doanh'],['Student (without a stable income)','Sinh viên (chưa có thu nhập ổn định)'],['Pupil','Học sinh']];
-const REASON: Opt[] = [['Garden guarding','Trông coi nhà/sân vườn'],['Parking lot guarding','Giữ xe/bãi đỗ'],['Breeding','Nhân giống'],['Gift for children','Quà tặng cho trẻ em'],['Because I want to give them a forever home','Vì tôi muốn cho chúng một mái ấm mãi mãi'],['Other','Khác']];
-const YN: Opt[] = [['Yes','Có'],['No','Không']];
-const YNS: Opt[] = [...YN, ['Sometimes','Đôi khi']];
-const WHO: Opt[] = [['Myself','Cho bản thân'],['Someone else','Cho người khác']];
+const HOUSING: Opt[] = [['House', 'Nhà riêng'], ['House with a garden', 'Nhà có sân vườn'], ['Apartment (allows pet ownership)', 'Căn hộ (cho phép nuôi thú cưng)'], ['Apartment (pets not allowed, but willing to keep a pet discreetly)', 'Căn hộ (không cho phép nhưng vẫn muốn nuôi)'], ['Rented house', 'Nhà thuê'], ['Other', 'Khác']];
+const EXP: Opt[] = [['Yes, I used to have one', 'Có, tôi đã từng nuôi'], ['My pet is still living with me now', 'Thú cưng vẫn đang sống cùng tôi'], ["No, I haven't", 'Chưa bao giờ']];
+const JOB: Opt[] = [['Currently employed', 'Đang đi làm'], ['Currently employed (occasionally travels for work)', 'Đang đi làm (thỉnh thoảng công tác)'], ['Currently employed (frequently travels for work)', 'Đang đi làm (thường xuyên công tác)'], ['Self-employed', 'Tự kinh doanh'], ['Student (without a stable income)', 'Sinh viên (chưa có thu nhập ổn định)'], ['Pupil', 'Học sinh']];
+const REASON: Opt[] = [['Garden guarding', 'Trông coi nhà/sân vườn'], ['Parking lot guarding', 'Giữ xe/bãi đỗ'], ['Breeding', 'Nhân giống'], ['Gift for children', 'Quà tặng cho trẻ em'], ['Because I want to give them a forever home', 'Vì tôi muốn cho chúng một mái ấm mãi mãi'], ['Other', 'Khác']];
+const YN: Opt[] = [['Yes', 'Có'], ['No', 'Không']];
+const YNS: Opt[] = [...YN, ['Sometimes', 'Đôi khi']];
+const WHO: Opt[] = [['Myself', 'Cho bản thân'], ['Someone else', 'Cho người khác']];
 const COMMITS: [string, string][] = [
   ['vaccine', 'Bạn có sẵn sàng tiêm phòng bệnh định kỳ hằng năm cho {n} không?'],
   ['medical', 'Trong thời gian nuôi, {n} sẽ có lúc ốm và cần đi viện. Bạn có sẵn sàng đưa {n} đi viện và chịu mọi chi phí điều trị không?'],
@@ -38,7 +39,20 @@ const ERR: Record<string, string> = {
 };
 const inputCls = 'w-full h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none focus:border-[#E89B5A]';
 
-export default function AdoptionFormModal({ pet, onClose }: { pet: { id: string; name: string; shelterName?: string | null }; onClose: () => void }) {
+export default function AdoptionFormModal({
+  pet,
+  onClose
+}: {
+  pet: {
+    id: string;
+    name: string;
+    shelterName?: string | null;
+    avatarUrl?: string;
+    ageLabel?: string;
+    breed?: string;
+  };
+  onClose: () => void
+}) {
   const shelter = pet.shelterName || 'trạm cứu hộ';
   const [step, setStep] = useState<'terms' | 'form' | 'done'>('terms');
   const [read, setRead] = useState(false);
@@ -74,7 +88,7 @@ export default function AdoptionFormModal({ pet, onClose }: { pet: { id: string;
   useEffect(() => {
     fetch('https://provinces.open-api.vn/api/v2/p/').then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setProvinces(d.map((p: any) => ({ ...p, clean: p.name.replace(/^(Tỉnh|Thành phố)\s+/i, '').trim() })).sort((a: any, b: any) => a.clean.localeCompare(b.clean, 'vi')));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -83,7 +97,7 @@ export default function AdoptionFormModal({ pet, onClose }: { pet: { id: string;
     if (!p?.code) return;
     fetch(`https://provinces.open-api.vn/api/v2/w/?province=${p.code}`).then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setWards(d.map((w: any) => w.name).sort((a: string, b: string) => a.localeCompare(b, 'vi')));
-    }).catch(() => {});
+    }).catch(() => { });
   }, [city, provinces]);
 
   const fld = (label: string, el: React.ReactNode, req = false) => (
@@ -186,6 +200,23 @@ export default function AdoptionFormModal({ pet, onClose }: { pet: { id: string;
             <h2 className="pr-8 text-xl font-bold text-gray-900">Đơn đăng ký nhận nuôi {pet.name}</h2>
             <p className="text-xs font-semibold text-[#F97316]">{shelter}</p>
 
+            {/* BẮT ĐẦU: UI Pet Card hiển thị thông tin lấy từ màn hình trước */}
+            <div className="mt-5 flex items-center gap-4 rounded-[20px] bg-[#EEF5FA] p-4">
+              {pet.avatarUrl ? (
+                <img src={pet.avatarUrl} alt={pet.name} className="h-[72px] w-[72px] shrink-0 rounded-xl object-cover" />
+              ) : (
+                <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-xl bg-gray-200 text-gray-400">
+                  <PawPrint size={28} />
+                </div>
+              )}
+              <div className="flex flex-col justify-center">
+                <h3 className="text-xl font-medium tracking-tight text-[#0D062D]">{pet.name}</h3>
+                <p className="mt-0.5 text-[13px] text-[#8E8E93]">
+                  {pet.ageLabel || 'Chưa rõ tuổi'} · {pet.breed || 'Chưa rõ giống'}
+                </p>
+                <p className="mt-1 text-[13px] font-medium text-[#E89B5A]">{shelter}</p>
+              </div>
+            </div>
             {title('Mục A – Thông tin người nhận nuôi')}
             {fld('Họ và tên', txt('fullName'), true)}
             {fld('Số Zalo / Điện thoại', txt('zalo', '', 'tel'), true)}
