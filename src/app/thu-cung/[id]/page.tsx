@@ -130,11 +130,16 @@ export default function PublicPetDetailPage({ params }: { params: Promise<{ id: 
             </div>
             <div>
               <p className="mb-3 text-sm font-medium text-black">Chăm sóc sức khỏe</p>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 {([[Syringe, 'Tiêm chủng', vaccinated ? 'Đã tiêm phòng' : 'Chưa tiêm'], [pet.isSpayedNeutered ? Check : X, 'Trạng thái', pet.isSpayedNeutered ? 'Đã triệt sản' : 'Chưa triệt sản']] as any[]).map(([I, l, v]) => (
-                  <div key={l} className="flex h-[50px] flex-1 items-center gap-3 rounded-full bg-[#F7F7F7] px-2">
-                    <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white"><I size={18} className="text-[#E89B5A]" /></div>
-                    <div className="min-w-0"><p className="text-[12px] text-[#8E8E93]">{l}</p><p className="truncate text-[13px] font-medium text-black">{v}</p></div>
+                  <div key={l} className="flex min-h-[46px] sm:min-h-[50px] flex-1 items-center gap-1.5 sm:gap-3 rounded-xl sm:rounded-full bg-[#F7F7F7] p-1.5 sm:px-2 sm:py-0">
+                    <div className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-white sm:h-[42px] sm:w-[42px]">
+                      <I className="h-4 w-4 text-[#E89B5A] sm:h-[18px] sm:w-[18px]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[10.5px] text-[#8E8E93] sm:text-[12px]">{l}</p>
+                      <p className="truncate text-[11.5px] font-medium text-black sm:text-[13px]">{v}</p>
+                    </div>
                   </div>
                 ))}
               </div>
