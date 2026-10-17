@@ -201,7 +201,7 @@ export default function AdoptionFormModal({
             <p className="text-xs font-semibold text-[#F97316]">{shelter}</p>
 
             {/* BẮT ĐẦU: UI Pet Card hiển thị thông tin lấy từ màn hình trước */}
-            <div className="mt-5 flex items-center gap-4 rounded-[20px] bg-[#EEF5FA] p-4">
+            <div className="mt-5 flex items-center gap-4 rounded-[20px] bg-[#EEF5FA] p-4 shadow-sm border border-gray-100">
               {pet.avatarUrl ? (
                 <img src={pet.avatarUrl} alt={pet.name} className="h-[72px] w-[72px] shrink-0 rounded-xl object-cover" />
               ) : (
