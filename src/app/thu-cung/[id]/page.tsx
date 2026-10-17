@@ -98,7 +98,8 @@ export default function PublicPetDetailPage({ params }: { params: Promise<{ id: 
               {pet.shelter.address && <p className="text-xs text-gray-500">{pet.shelter.address}</p>}
             </div>
           )}
-          <button type="button" onClick={() => setApplying(true)} className="w-full rounded-full bg-[#E89B5A] py-3.5 text-base font-bold text-white shadow-lg transition hover:-translate-y-0.5">
+          {/* Nút Đăng ký (Desktop Only) - Thêm hidden lg:block */}
+          <button type="button" onClick={() => setApplying(true)} className="hidden w-full rounded-full bg-[#E89B5A] py-3.5 text-base font-bold text-white shadow-lg transition hover:-translate-y-0.5 lg:block">
             Đăng ký nhận nuôi {pet.name}
           </button>
         </div>
@@ -188,6 +189,12 @@ export default function PublicPetDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
       </div>
+
+      {/* Nút Đăng ký (Mobile Only) - Bọc block lg:hidden và thêm mt-6 */}
+      <button type="button" onClick={() => setApplying(true)} className="mt-6 block w-full rounded-full bg-[#E89B5A] py-3.5 text-base font-bold text-white shadow-lg transition hover:-translate-y-0.5 lg:hidden">
+        Đăng ký nhận nuôi {pet.name}
+      </button>
+
       {applying && <AdoptionFormModal pet={{ id: pet.id, name: pet.name, shelterName: pet.shelter?.name }} onClose={() => setApplying(false)} />}
     </div>
   );
