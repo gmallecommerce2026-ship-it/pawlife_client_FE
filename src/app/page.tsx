@@ -32,6 +32,9 @@ const ROUTES = {
   stories: "/cau-chuyen",
   privacy: "/chinh-sach-bao-mat",
   terms: "/dieu-khoan",
+  contact: "/lien-he",
+  support: "/ho-tro",
+  deleteAccount: "/xoa-tai-khoan",
 };
 
 const SOCIALS = {
@@ -69,7 +72,7 @@ const NAV_LINKS = [
   { label: "Thẻ QR", href: "#qr" },
   { label: "Nhận nuôi", href: ROUTES.pets },
   { label: "Trạm cứu hộ", href: "#shelters" },
-  { label: "Hỏi đáp", href: "#faq" },
+  { label: "Hỗ trợ", href: ROUTES.support },
 ];
 
 // ============================================================================
@@ -971,7 +974,7 @@ const HeaderSection = () => {
                 <motion.a key={l.href} href={l.href} whileHover={{ y: -1, color: COLOR.brand }} style={linkStyle}>{l.label}</motion.a>
               ),
             )}
-            <ButtonLink href="#download" size="sm" variant="primary">Liên hệ</ButtonLink>
+            <ButtonLink href={ROUTES.contact} size="sm" variant="primary">Liên hệ</ButtonLink>
           </nav>
 
           <button
@@ -1947,7 +1950,10 @@ const FooterSection = () => {
           <div className="flex flex-col gap-[18px]">
             <a href="#stories" style={linkStyle}>Đánh giá</a>
             <a href="#faq" style={linkStyle}>Hỏi đáp</a>
+            <Link href={ROUTES.support} style={linkStyle}>Trung tâm hỗ trợ</Link>
+            <Link href={ROUTES.contact} style={linkStyle}>Liên hệ</Link>
             <a href="#partners" style={linkStyle}>Đối tác</a>
+            <Link href={ROUTES.deleteAccount} style={{ ...linkStyle, fontSize: "13px" }}>Xóa tài khoản</Link>
           </div>
           <div className="flex flex-col gap-[18px]">
             <a href={CONTACT.phoneHref} style={linkStyle}>{CONTACT.phone}</a>

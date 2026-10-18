@@ -53,7 +53,7 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <h1 className="text-2xl font-bold text-[#123832]">Shelter Admin</h1>
+        <h1 className="text-2xl font-bold text-[#123832]">PawLife</h1>
         <p className="text-gray-500 text-sm mt-2">Đăng nhập vào bảng điều khiển</p>
       </div>
 

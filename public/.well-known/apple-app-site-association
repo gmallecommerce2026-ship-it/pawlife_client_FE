@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["THAY_TEAM_ID.com.annguyen.pawlife"],
+        "components": [
+          { "/": "/scan/*", "comment": "Link QR thú cưng: https://pawlife.vn/scan/PL-024817" },
+          { "/": "/thu-cung/*", "comment": "Trang chi tiết thú cưng nhận nuôi" }
+        ]
+      }
+    ]
+  }
+}

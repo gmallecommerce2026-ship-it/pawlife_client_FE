@@ -5,9 +5,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  
+
   // eslint: { ignoreDuringBuilds: true }, // Uncomment nếu bị lỗi ESLint chặn deploy
-  
+
   images: {
     dangerouslyAllowSVG: true,
     remotePatterns: [
@@ -26,11 +26,19 @@ const nextConfig: NextConfig = {
         // Khi Web gọi các route bắt đầu bằng /api/v1/...
         source: '/api/v1/:path*',
         // Sẽ được Next.js ngầm chuyển tiếp (proxy) sang URL của NestJS Backend
-        destination: `${process.env.NESTJS_BACKEND_URL || 'http://localhost:3001'}/:path*`, 
+        destination: `${process.env.NESTJS_BACKEND_URL || 'http://localhost:3001'}/:path*`,
       },
     ];
   },
-  
+
+  async headers() {
+    return [
+      // iOS yêu cầu file AASA trả về JSON, không redirect
+      { source: "/.well-known/apple-app-site-association", headers: [{ key: "Content-Type", value: "application/json" }] },
+      { source: "/.well-known/assetlinks.json", headers: [{ key: "Content-Type", value: "application/json" }] },
+    ];
+  },
+
   webpack(config) {
     // 1. Tìm rule mặc định của Next.js đang xử lý file SVG
     const fileLoaderRule = config.module.rules.find((rule: any) =>
@@ -43,15 +51,15 @@ const nextConfig: NextConfig = {
         {
           ...fileLoaderRule,
           test: /\.svg$/i,
-          resourceQuery: /url/, 
+          resourceQuery: /url/,
         },
 
         // Rule 2: Các trường hợp còn lại (import icon from './icon.svg')
         {
           test: /\.svg$/i,
           issuer: fileLoaderRule.issuer,
-          resourceQuery: { 
-            not: [...(fileLoaderRule.resourceQuery?.not || []), /url/] 
+          resourceQuery: {
+            not: [...(fileLoaderRule.resourceQuery?.not || []), /url/]
           },
           use: ["@svgr/webpack"],
         }
