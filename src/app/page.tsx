@@ -21,8 +21,8 @@ import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
 // ============================================================================
 // 0. CẤU HÌNH & HẰNG SỐ
 // ============================================================================
-const IOS_APP_URL = "https://apps.apple.com/vn/app/REPLACE_WITH_REAL_LINK";
-const ANDROID_APP_URL: string | null = null;
+const IOS_APP_URL = "https://apps.apple.com/vn/app/pawlife-pet-id/id6760687982";
+const ANDROID_APP_URL = "https://play.google.com/store/apps/details?id=com.annguyen.pawlife&hl=en";
 
 const ROUTES = {
   scan: "/scan",
@@ -1934,7 +1934,7 @@ const FooterSection = () => {
           <p style={{ fontFamily: FONT_HEAD, fontSize: "14px", fontWeight: 600, color: COLOR.muted, marginBottom: "14px" }}>Tải app PawLife - Pet ID</p>
           <div className="flex flex-wrap gap-[16px] pt-[8px]">
             <StoreButton href={IOS_APP_URL} icon={<AppleIcon />} small="Tải về trên" big="App Store" />
-            <StoreButton href={ANDROID_APP_URL} icon={<PlayIcon />} small="Tải về trên" big="Google Play" badge="Sắp ra mắt" />
+            <StoreButton href={ANDROID_APP_URL} icon={<PlayIcon />} small="Tải về trên" big="Google Play" />
           </div>
         </div>
 
