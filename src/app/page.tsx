@@ -2,13 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useState, useRef } from "react";
-import {
-  motion,
-  useReducedMotion,
-  useInView,
-  AnimatePresence,
-  useAnimation,
-} from "framer-motion";
+import { motion, useReducedMotion, useInView, AnimatePresence, useAnimation, useMotionValue, animate } from "framer-motion";
 import Link from "next/link";
 import axiosClient from "@/lib/api/axiosClient";
 import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
@@ -48,7 +42,7 @@ const HEADER_HEIGHT = 80;
 const NAV_LINKS = [
   { label: "Trang chủ", href: "#top" },
   { label: "Nhận nuôi", href: "thu-cung" },
-  { label: "Quét QR", href: "#qr" },
+  { label: "Quét QR", href: "scan" },
   { label: "Liên hệ", href: ROUTES.contact },
 ];
 
@@ -235,7 +229,7 @@ const ButtonLink = ({ href, children, variant = "primary", className = "", style
 };
 
 const SectionHeading = ({ eyebrow, title, center = true }: { eyebrow: string; title: string; center?: boolean }) => (
-  <div style={{ textAlign: center ? "center" : "left", marginBottom: "48px" }}>
+  <div style={{ textAlign: center ? "center" : "left", marginBottom: "clamp(20px, 5vw, 48px)" }}>
     {eyebrow && <motion.p initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ color: COLOR.purple, fontSize: "16px", fontWeight: 700, marginBottom: "8px", fontFamily: FONT_HEAD }}>{eyebrow}</motion.p>}
     <motion.h2 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }} style={{ color: COLOR.ink, fontSize: "clamp(32px, 4vw, 44px)", fontWeight: 900, fontFamily: FONT_HEAD, letterSpacing: "-1px", lineHeight: 1.2 }}>
       {title}
@@ -263,10 +257,92 @@ const CountUp = ({ to, suffix = "" }: { to: number; suffix?: string }) => {
 
 // --- Custom Hooks & Carousel Elements ---
 const useCarousel = (length: number) => {
-  const [index, setIndex] = useState(0);
-  const next = () => setIndex((p) => (p + 1) % length);
-  const prev = () => setIndex((p) => (p - 1 + length) % length);
-  return { index, next, prev, setIndex };
+  const [[index, dir], set] = useState<[number, number]>([0, 1]);
+  const next = () => set(([p]) => [(p + 1) % length, 1]);
+  const prev = () => set(([p]) => [(p - 1 + length) % length, -1]);
+  return { index, dir, next, prev };
+};
+
+const slideVariants = {
+  enter: (d: number) => ({ opacity: 0, x: 50 * d }),
+  center: { opacity: 1, x: 0 },
+  exit: (d: number) => ({ opacity: 0, x: -50 * d }),
+};
+// Đoạn văn dài: thu gọn 3 dòng trên mobile, PC hiện đủ (cần Tailwind >= 3.3 cho line-clamp)
+const ClampText = ({ text, className = "" }: { text: string; className?: string }) => {
+  const [open, setOpen] = useState(false);
+  const long = text.length > 110;
+  return (
+    <div className={className}>
+      <p className={!open && long ? "line-clamp-3 lg:line-clamp-none" : ""}>{text}</p>
+      {long && (
+        <button type="button" onClick={() => setOpen(!open)} className="mt-1.5 text-[14px] font-semibold lg:hidden" style={{ color: COLOR.purple }}>
+          {open ? "Thu gọn" : "Xem thêm"}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// Khối phụ: ẩn trên mobile cho tới khi bấm "Xem thêm", PC luôn hiện
+const MobileMore = ({ children }: { children: React.ReactNode }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className={open ? "block" : "hidden lg:block"}>{children}</div>
+      <button type="button" onClick={() => setOpen(!open)} className="mb-4 self-start text-[14px] font-semibold lg:hidden" style={{ color: COLOR.purple }}>
+        {open ? "Thu gọn" : "Xem thêm"}
+      </button>
+    </>
+  );
+};
+
+const BTN = { padding: "14px 12px", fontSize: "15px", fontWeight: 700, borderRadius: "15px", fontFamily: FONT_BODY, textDecoration: "none", whiteSpace: "nowrap" as const, cursor: "pointer" };
+const PrimaryBtn = ({ href, onClick, children, className = "flex-1", style }: any) => (
+  <motion.a href={href} onClick={onClick} whileHover={{ filter: "brightness(1.15)" }} whileTap={{ scale: 0.95 }} transition={{ duration: 0.2 }}
+    className={`${className} inline-flex items-center justify-center text-center text-white`}
+    style={{ ...BTN, whiteSpace: "normal", backgroundColor: COLOR.brand, boxShadow: "0 8px 25px rgba(251,191,36,0.3)", ...style }}>
+    {children}
+  </motion.a>
+);
+
+const OutlineBtn = ({ href, onClick, children, className = "flex-1", style }: any) => (
+  <motion.a href={href} onClick={onClick} initial={{ backgroundColor: "transparent", color: COLOR.brand }} whileHover={{ backgroundColor: COLOR.brand, color: "#fff" }} whileTap={{ scale: 0.95 }} transition={{ duration: 0.3 }}
+    className={`${className} inline-flex items-center justify-center text-center`}
+    style={{ ...BTN, whiteSpace: "normal", border: `2px solid ${COLOR.brand}`, ...style }}>
+    {children}
+  </motion.a>
+);
+const SwipeArea = ({ onNext, onPrev, children, className = "" }: { onNext: () => void; onPrev: () => void; children: React.ReactNode; className?: string }) => {
+  const x = useMotionValue(0);
+  const active = useRef(false);
+  const MAX = 64;   // độ chờn tối đa (px)
+  const GAIN = 1.4; // >1 = nhạy hơn ngón tay lúc mới chạm
+  const settle = () => animate(x, 0, { type: "spring", stiffness: 420, damping: 30 });
+
+  return (
+    <motion.div
+      className={className}
+      style={{ x, touchAction: "pan-y" }} // giữ cuộn dọc, bắt vuốt ngang
+      onPanStart={(e, { offset }) => {
+        active.current = (e as PointerEvent).pointerType !== "mouse" && Math.abs(offset.x) > Math.abs(offset.y);
+      }}
+      onPan={(_, { offset }) => {
+        if (!active.current) return;
+        const d = offset.x;
+        x.set(Math.sign(d) * MAX * (1 - Math.exp(-(Math.abs(d) * GAIN) / MAX)));
+      }}
+      onPanEnd={(_, { offset, velocity }) => {
+        if (!active.current) return;
+        active.current = false;
+        if (Math.abs(offset.x) > 60 || Math.abs(velocity.x) > 500) (offset.x < 0 ? onNext : onPrev)();
+        settle();
+      }}
+      onPanSessionStart={() => x.stop()}
+    >
+      {children}
+    </motion.div>
+  );
 };
 
 const StackedCarouselControls = ({ onPrev, onNext, className = "", position = "left" }: { onPrev: () => void, onNext: () => void, className?: string, position?: "left" | "right" }) => (
@@ -281,7 +357,7 @@ const StackedCarouselControls = ({ onPrev, onNext, className = "", position = "l
 );
 
 const CarouselPagination = ({ total, current }: { total: number, current: number }) => (
-  <div className="flex gap-[6px] justify-center mt-10">
+  <div className="flex gap-[6px] justify-center mt-5 lg:mt-10">
     {Array.from({ length: total }).map((_, i) => (
       <div key={i} className={`h-[6px] rounded-full transition-all duration-300 ${i === current ? "w-8 bg-purple-400" : "w-[6px] bg-gray-300"}`} />
     ))}
@@ -370,7 +446,7 @@ const FloatingQrButton = () => {
 // ============================================================================
 
 // HEADER STICKY (Đầu trang: Tím sần -> Khi cuộn: Kính trong suốt)
-const HeaderSection = () => {
+export const HeaderSection = () => {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -464,7 +540,8 @@ const HeroSection = () => (
         <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#10B981" }} />
         <span style={{ fontSize: "14px", fontWeight: 600, color: COLOR.ink, fontFamily: FONT_BODY }}>Hơn 10.000 người nhận nuôi hạnh phúc</span>
       </div>
-      <h1 style={{ fontSize: "clamp(48px, 6vw, 84px)", fontWeight: 900, lineHeight: 1.05, fontFamily: FONT_HEAD, letterSpacing: "-2px", marginBottom: "24px" }}>
+      <h1 className="text-[length:clamp(36px,10.5vw,48px)] lg:text-[length:clamp(48px,6vw,84px)]"
+        style={{ fontWeight: 900, lineHeight: 1.05, fontFamily: FONT_HEAD, letterSpacing: "-2px", marginBottom: "24px" }}>
         <span style={{ color: COLOR.purple }}>Đừng mua.</span><br />
         <span style={{ color: COLOR.ink }}>Hãy nhận nuôi.</span>
       </h1>
@@ -472,7 +549,7 @@ const HeroSection = () => (
         Mỗi thú cưng đều xứng đáng có một mái ấm. Hãy tìm người bạn đồng hành hoàn hảo và trao cho bé cuộc sống xứng đáng.
       </p>
 
-      <div className="mb-16 flex flex-wrap gap-4 items-center">
+      <div className="mb-10 lg:mb-16 flex flex-wrap gap-4 items-center">
         {/* NÚT 1: Scale khối & Text + Đảo chiều Gradient Cam */}
         <motion.a
           href={ROUTES.pets}
@@ -527,7 +604,7 @@ const HeroSection = () => (
         </motion.a>
       </div>
 
-      <dl className="flex w-full max-w-[480px] items-center gap-10">
+      <dl className="flex w-full max-w-[480px] items-center gap-6 sm:gap-10">
         {HERO_STATS.map((s) => (
           <div key={s.label} className="flex flex-col items-start">
             <dd style={{ fontSize: "28px", fontWeight: 900, color: COLOR.ink, fontFamily: FONT_HEAD }}>{s.value}</dd>
@@ -538,17 +615,18 @@ const HeroSection = () => (
     </motion.div>
 
     {/* Cột phải: Hình ảnh thú cưng */}
-    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="relative z-10 flex h-[400px] w-full items-end justify-center lg:h-[800px] lg:w-1/2">
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }}
+      className="relative z-10 flex h-[360px] w-full items-end justify-center sm:h-[480px] lg:h-[800px] lg:w-1/2">
 
-      {/* Vầng sáng vàng nhạt phía sau ảnh */}
-      <div className="pointer-events-none absolute right-[10%] top-[25%] z-[-1] h-[450px] w-[450px] rounded-full bg-gradient-to-tr from-transparent via-[#FEF3C7]/40 to-[#FDE68A]/20 blur-[120px]" />
+      {/* Vầng sáng: nhỏ hơn trên mobile */}
+      <div className="pointer-events-none absolute right-[10%] top-[25%] z-[-1] h-[280px] w-[280px] rounded-full bg-gradient-to-tr from-transparent via-[#FEF3C7]/40 to-[#FDE68A]/20 blur-[80px] lg:h-[450px] lg:w-[450px] lg:blur-[120px]" />
 
-      {/* Hình ảnh lớn hơn với scale-[1.15] */}
-      <img src="/assets/piglet.png" alt="Cute fluffy dog" className="absolute bottom-0 w-[120%] max-h-[125%] origin-bottom scale-[1.15] object-contain drop-shadow-2xl" />
+      {/* Mobile: vừa khung, không scale, không tràn. PC (lg:): y nguyên 120% + scale 1.15 */}
+      <img src="/assets/piglet.png" alt="Cute fluffy dog"
+        className="absolute bottom-0 w-full max-w-[460px] max-h-full origin-bottom scale-100 object-contain object-bottom drop-shadow-2xl lg:w-[120%] lg:max-w-none lg:max-h-[125%] lg:scale-[1.15] lg:object-center" />
 
-      {/* Lớp phủ làm mờ dần xuống màu trắng ở phần dưới cùng */}
-      <div className="pointer-events-none absolute bottom-0 left-0 w-full h-[360px] bg-gradient-to-t from-[#FFFFFF] via-[#FFFFFF]/80 to-transparent z-20" />
-
+      {/* Lớp mờ: mỏng trên mobile để không che ảnh */}
+      <div className="pointer-events-none absolute bottom-0 left-0 z-20 h-[110px] w-full bg-gradient-to-t from-[#FFFFFF] via-[#FFFFFF]/80 to-transparent sm:h-[160px] lg:h-[360px]" />
     </motion.div>
 
     {/* Icon chuột cuộn nảy lên xuống */}
@@ -617,7 +695,7 @@ const AboutUsSection = () => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <section id="about" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col-reverse items-center gap-12 px-6 lg:flex-row lg:gap-24">
+    <section id="about" className="mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col-reverse items-center gap-12 px-6 lg:flex-row lg:gap-24">
       {/* Container bắt sự kiện chuột */}
       <div
         className="relative h-[400px] w-full lg:h-[500px] lg:w-1/2 xl:h-[600px] xl:h-[600px]"
@@ -684,152 +762,109 @@ const AboutUsSection = () => {
   );
 };
 
-// QR SYSTEM (Hình 3 & Card nổi bồng bềnh + Lớp mờ)
-const QrSection = () => {
-  // Thay đổi để dùng chung mảng dữ liệu (dù ở đây tĩnh nhưng giúp tái cấu trúc để tái sử dụng)
-  const qrData = [{ id: 1 }];
-  const { index, next, prev } = useCarousel(qrData.length);
+const QR_SLIDES = [
+  {
+    icon: "QR", img: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=600&q=80",
+    title: "Định danh QR", sub: "Định danh kỹ thuật số vĩnh viễn cho thú cưng",
+    pet: { name: "Max", female: false, info: "3 tuổi · Golden Retriever", qr: "QR-2024-001234", chip: "985112345678901", note: "Thân thiện, thích ăn vặt" },
+    points: ["ID thú cưng vĩnh viễn — không bao giờ tái sử dụng", "Quyền sở hữu được liên kết & đóng dấu thời gian", "Lịch sử chuyển chủ được ghi nhận, không ghi đè", "Định danh tồn tại suốt vòng đời thú cưng"]
+  },
+  {
+    icon: "Doc", img: "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=600&q=80",
+    title: "Hồ sơ sức khỏe", sub: "Sổ y tế số luôn đi cùng bé",
+    pet: { name: "Luna", female: true, info: "1 tuổi · Labrador", qr: "QR-2024-001235", chip: "985112345678902", note: "Đã tiêm đủ mũi cơ bản" },
+    points: ["Lưu lịch sử tiêm phòng và tẩy giun", "Nhắc lịch tiêm, tái khám tự động", "Chia sẻ hồ sơ với bác sĩ chỉ bằng một lần quét", "Ghi chú dị ứng, bệnh lý luôn sẵn sàng"]
+  },
+  {
+    icon: "Shield", img: "https://images.unsplash.com/photo-1605568427561-40dd23c2acea?auto=format&fit=crop&w=600&q=80",
+    title: "Bảo vệ khi thất lạc", sub: "Giúp bé về nhà nhanh hơn",
+    pet: { name: "Rocky", female: false, info: "4 tuổi · Siberian Husky", qr: "QR-2024-001236", chip: "985112345678903", note: "Hay sợ tiếng pháo" },
+    points: ["Quét QR là thấy ngay thông tin liên hệ chủ nuôi", "Thông báo tức thì khi có người quét thẻ", "Bật chế độ thất lạc để lan tỏa cảnh báo", "Người tìm thấy không cần cài ứng dụng"]
+  },
+] as const;
 
+const QrSlide = ({ s }: { s: (typeof QR_SLIDES)[number] }) => {
+  const [open, setOpen] = useState(false);
   return (
-    <section id="qr" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6">
-      <SectionHeading eyebrow="Hệ thống QR" title="Bảo mật danh tính thú cưng" />
-      <div className="relative flex w-full flex-col items-center gap-10 lg:flex-row lg:items-stretch overflow-hidden">
-
-        {/* CAROUSEL WRAPPER TRƯỢT NGANG */}
-        <motion.div
-          animate={{ x: `-${index * 100}%` }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="flex w-full min-w-full flex-col lg:flex-row"
-        >
-          {qrData.map((_, i) => (
-            <div key={i} className="flex w-full min-w-full flex-col lg:flex-row gap-10">
-
-              {/* Cột Trái - Ảnh & Card nổi */}
-              <div className="relative w-full lg:w-[45%]">
-                <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=600&q=80" alt="Cat" className="h-[500px] w-full rounded-[40px] object-cover xl:h-[600px]" />
-
-                {/* Card nổi bồng bềnh + Lớp gradient mờ chữ */}
-                <motion.div
-                  animate={{ y: [0, -12, 0] }}
-                  transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
-                  className="absolute -bottom-6 -right-6 w-[260px] rounded-[24px] bg-white pt-6 px-6 pb-2 shadow-2xl overflow-hidden"
-                >
-                  <div className="flex items-center gap-2 mb-1"><span className="text-xl font-bold text-gray-900">Max</span><Icons.Male /></div>
-                  <div className="text-sm text-gray-500 mb-4">3 tuổi · Golden Retriever</div>
-                  <div className="h-px bg-gray-100 my-4" />
-                  <div className="text-[10px] font-bold text-gray-400 mb-1">MÃ QR</div>
-                  <div className="text-sm font-semibold text-gray-900 mb-3">QR-2024-001234</div>
-                  <div className="text-[10px] font-bold text-gray-400 mb-1">MICROCHIP</div>
-                  <div className="text-sm font-semibold text-gray-900 mb-3">985112345678901</div>
-                  <div className="text-[10px] font-bold text-gray-400 mb-1">GHI CHÚ</div>
-                  <div className="text-sm font-semibold text-gray-900 mb-6">Thân thiện, thích ăn vặt</div>
-
-                  {/* Lớp phủ mờ (Fade Out Overlay) */}
-                  <div className="absolute bottom-0 left-0 w-full h-16 bg-gradient-to-t from-white via-white/80 to-transparent rounded-b-[24px]"></div>
-                </motion.div>
-              </div>
-
-              {/* Cột Phải - Các nút bấm custom */}
-              <div className="flex w-full flex-col pl-0 lg:w-[55%] lg:pl-16 relative mt-12 lg:mt-0 lg:justify-center">
-                <div className="rounded-[32px] border border-gray-100 bg-white p-10 shadow-[0_20px_60px_rgba(0,0,0,0.04)] mb-8">
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="bg-purple-50 p-2 rounded-xl"><Icons.QR color={COLOR.purple} /></div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 font-['Be_Vietnam_Pro']">Định danh QR</h3>
-                      <p className="text-gray-500 mt-1 text-[15px]">Định danh kỹ thuật số vĩnh viễn cho thú cưng</p>
-                    </div>
-                  </div>
-                  <ul className="flex flex-col gap-4">
-                    {[
-                      "ID thú cưng vĩnh viễn — không bao giờ tái sử dụng",
-                      "Quyền sở hữu được liên kết & đóng dấu thời gian",
-                      "Lịch sử chuyển chủ được ghi nhận, không ghi đè",
-                      "Định danh tồn tại suốt vòng đời thú cưng"
-                    ].map((text) => (
-                      <li key={text} className="flex items-center gap-3">
-                        <Icons.Check color={COLOR.purple} />
-                        <span className="text-gray-600 font-medium text-[15px]">{text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="flex justify-center gap-2 mb-8">
-                  <div className="h-[6px] w-8 rounded-full bg-purple-400"></div>
-                  <div className="h-[6px] w-[6px] rounded-full bg-gray-200"></div>
-                  <div className="h-[6px] w-[6px] rounded-full bg-gray-200"></div>
-                </div>
-
-                <div className="flex gap-4">
-                  {/* Nút Tải ứng dụng */}
-                  <motion.a
-                    href="#download"
-                    whileHover={{ filter: "brightness(1.15)" }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex-1 inline-flex items-center justify-center text-center text-white"
-                    style={{
-                      backgroundColor: COLOR.brand,
-                      padding: "14px 28px",
-                      fontSize: "15px",
-                      fontWeight: 700,
-                      borderRadius: "15px",
-                      fontFamily: FONT_BODY,
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                      cursor: "pointer",
-                      boxShadow: "0 8px 25px rgba(251,191,36,0.3)"
-                    }}
-                  >
-                    Tải ứng dụng
-                  </motion.a>
-
-                  {/* Nút Mua thẻ QR */}
-                  <motion.a
-                    href={ROUTES.qrShop}
-                    initial={{ backgroundColor: "transparent", color: COLOR.brand }}
-                    whileHover={{ backgroundColor: COLOR.brand, color: "#fff" }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.3 }}
-                    className="flex-1 inline-flex items-center justify-center text-center"
-                    style={{
-                      padding: "14px 28px",
-                      fontSize: "15px",
-                      fontWeight: 700,
-                      borderRadius: "15px",
-                      fontFamily: FONT_BODY,
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                      border: `2px solid ${COLOR.brand}`,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Mua thẻ QR
-                  </motion.a>
-                </div>
-
-                <div className="absolute top-1/2 -right-16 -translate-y-1/2 hidden lg:flex flex-col gap-3">
-                  <button onClick={next} aria-label="Next" className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-gray-200 bg-white hover:bg-gray-50 shadow-sm transition opacity-50 cursor-not-allowed">
-                    <Icons.ChevronRight />
-                  </button>
-                  <button onClick={prev} aria-label="Previous" className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-gray-200 bg-white hover:bg-gray-50 shadow-sm transition opacity-50 cursor-not-allowed">
-                    <Icons.ChevronLeft />
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          ))}
+    <div className="flex w-full min-w-full shrink-0 flex-col gap-4 lg:flex-row lg:gap-10">
+      {/* Trái: ảnh + card nổi (mobile: gọn, nằm trong ảnh) */}
+      <div className="relative w-full lg:w-[45%]">
+        <img src={s.img} alt={s.title} className="h-[200px] w-full rounded-[28px] object-cover sm:h-[300px] lg:h-[500px] lg:rounded-[40px] xl:h-[600px]" />
+        <motion.div animate={{ y: [0, -12, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+          className="absolute bottom-3 right-3 w-[190px] overflow-hidden rounded-[20px] bg-white p-4 shadow-2xl lg:-bottom-6 lg:-right-6 lg:w-[260px] lg:rounded-[24px] lg:px-6 lg:pb-2 lg:pt-6">
+          <div className="mb-1 flex items-center gap-2"><span className="text-lg font-bold text-gray-900 lg:text-xl">{s.pet.name}</span>{s.pet.female ? <Icons.Female /> : <Icons.Male />}</div>
+          <div className="mb-2 text-[13px] text-gray-500 lg:mb-4 lg:text-sm">{s.pet.info}</div>
+          <div className="my-2 h-px bg-gray-100 lg:my-4" />
+          <div className="mb-1 text-[10px] font-bold text-gray-400">MÃ QR</div>
+          <div className="text-[13px] font-semibold text-gray-900 lg:mb-3 lg:text-sm">{s.pet.qr}</div>
+          <div className="hidden lg:block">
+            <div className="mb-1 text-[10px] font-bold text-gray-400">MICROCHIP</div>
+            <div className="mb-3 text-sm font-semibold text-gray-900">{s.pet.chip}</div>
+            <div className="mb-1 text-[10px] font-bold text-gray-400">GHI CHÚ</div>
+            <div className="mb-6 text-sm font-semibold text-gray-900">{s.pet.note}</div>
+            <div className="absolute bottom-0 left-0 h-16 w-full rounded-b-[24px] bg-gradient-to-t from-white via-white/80 to-transparent" />
+          </div>
         </motion.div>
       </div>
 
-      <div className="mt-[80px] grid w-full grid-cols-1 gap-8 md:grid-cols-4 lg:gap-4 text-center">
+      {/* Phải */}
+      <div className="relative flex w-full flex-col lg:w-[55%] lg:justify-center lg:pl-16">
+        <div className="mb-4 rounded-[24px] border border-gray-100 bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.04)] lg:mb-8 lg:rounded-[32px] lg:p-10">
+          <div className="mb-4 flex items-start gap-3 lg:mb-6 lg:gap-4">
+            <div className="rounded-xl bg-purple-50 p-2">{stepIcon(s.icon, COLOR.purple)}</div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 lg:text-xl font-['Be_Vietnam_Pro']">{s.title}</h3>
+              <p className="mt-1 text-[14px] text-gray-500 lg:text-[15px]">{s.sub}</p>
+            </div>
+          </div>
+          <ul className="flex flex-col gap-3 lg:gap-4">
+            {s.points.map((t, i) => (
+              <li key={t} className={`items-center gap-3 ${i > 1 && !open ? "hidden lg:flex" : "flex"}`}>
+                <span className="shrink-0"><Icons.Check color={COLOR.purple} /></span>
+                <span className="text-[14px] font-medium text-gray-600 lg:text-[15px]">{t}</span>
+              </li>
+            ))}
+          </ul>
+          <button type="button" onClick={() => setOpen(!open)} className="mt-3 text-[14px] font-semibold lg:hidden" style={{ color: COLOR.purple }}>
+            {open ? "Thu gọn" : "Xem thêm"}
+          </button>
+        </div>
+        <div className="flex gap-3 lg:gap-4">
+          <motion.a href="#download" whileHover={{ filter: "brightness(1.15)" }} whileTap={{ scale: 0.95 }} className="flex-1 inline-flex items-center justify-center text-center text-white"
+            style={{ ...BTN, backgroundColor: COLOR.brand, boxShadow: "0 8px 25px rgba(251,191,36,0.3)" }}>Tải ứng dụng</motion.a>
+          <motion.a href={ROUTES.qrShop} initial={{ backgroundColor: "transparent", color: COLOR.brand }} whileHover={{ backgroundColor: COLOR.brand, color: "#fff" }} whileTap={{ scale: 0.95 }} transition={{ duration: 0.3 }}
+            className="flex-1 inline-flex items-center justify-center text-center" style={{ ...BTN, border: `2px solid ${COLOR.brand}` }}>Mua thẻ QR</motion.a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QrSection = () => {
+  const { index, next, prev } = useCarousel(QR_SLIDES.length);
+  return (
+    <section id="qr" className="mx-auto mt-16 sm:mt-24 lg:mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] flex-col items-center px-6 lg:px-20">
+      <SectionHeading eyebrow="Hệ thống QR" title="Bảo mật danh tính thú cưng" />
+      <div className="relative w-full">
+        <div className="w-full overflow-hidden lg:-mb-6 lg:pb-6">
+          <SwipeArea onNext={next} onPrev={prev} className="w-full">
+            <motion.div animate={{ x: `-${index * 100}%` }} transition={{ type: "spring", stiffness: 300, damping: 30 }} className="flex w-full flex-row">
+              {QR_SLIDES.map((s) => <QrSlide key={s.title} s={s} />)}
+            </motion.div>
+          </SwipeArea>
+        </div>
+        <StackedCarouselControls onNext={next} onPrev={prev} position="right" className="absolute -right-16 top-1/2 hidden -translate-y-1/2 lg:flex" />
+      </div>
+      <CarouselPagination total={QR_SLIDES.length} current={index} />
+
+      {/* 4 bước: 2 hàng x 2 cột trên mobile */}
+      <div className="mt-10 grid w-full grid-cols-2 gap-x-4 gap-y-8 text-center md:grid-cols-4 lg:mt-[80px] lg:gap-4">
         {PET_STEPS.map((step, idx) => (
-          <motion.div key={idx} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.1 }} className="relative flex flex-col items-center">
-            <div className="mb-6">{stepIcon(step.icon, step.color)}</div>
-            <h4 className="text-[17px] font-bold text-gray-900 mb-3 font-['Be_Vietnam_Pro']">{step.title}</h4>
-            <p className="text-[13px] text-gray-500 whitespace-pre-line leading-relaxed">{step.desc}</p>
-            {idx < 3 && <div className="hidden md:block absolute top-4 right-[-16px]"><Icons.ArrowRightThin /></div>}
+          <motion.div key={idx} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: idx * 0.1 }} className="relative flex flex-col items-center">
+            <div className="mb-3 lg:mb-6">{stepIcon(step.icon, step.color)}</div>
+            <h4 className="mb-2 text-[15px] font-bold text-gray-900 lg:mb-3 lg:text-[17px] font-['Be_Vietnam_Pro']">{step.title}</h4>
+            <p className="text-[12px] leading-relaxed text-gray-500 md:whitespace-pre-line lg:text-[13px]">{step.desc}</p>
+            {idx < 3 && <div className="absolute right-[-16px] top-4 hidden md:block"><Icons.ArrowRightThin /></div>}
           </motion.div>
         ))}
       </div>
@@ -840,10 +875,9 @@ const QrSection = () => {
 // OUR PETS (Phần gọi dữ liệu API 2000 dòng được khôi phục)
 const PetsSection = () => {
   const [pets, setPets] = useState<Pet[]>([]);
-  const { index, next, prev } = useCarousel(pets.length || 1);
+  const { index, dir, next, prev } = useCarousel(pets.length || 1);
   const [applyPet, setApplyPet] = useState<Pet | null>(null);
 
-  // Tích hợp API chuẩn như code ban đầu
   useEffect(() => {
     axiosClient.get("/public/pets", { params: { limit: 12 } })
       .then((r) => {
@@ -857,84 +891,39 @@ const PetsSection = () => {
   if (!pet) return null;
 
   return (
-    <section id="pets" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6 relative">
+    <section id="pets" className="relative mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] flex-col items-center px-6 lg:px-20">
       <SectionHeading eyebrow="Thú cưng của chúng tôi" title="Tô màu cuộc sống của bé" />
-
       <StackedCarouselControls onNext={next} onPrev={prev} position="left" className="absolute top-[60%] left-4 hidden lg:flex" />
 
-      <AnimatePresence mode="wait">
-        <motion.div key={pet.id} initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} transition={{ duration: 0.4 }} className="flex w-full flex-col overflow-hidden bg-white lg:flex-row gap-12">
-          <div className="h-[400px] w-full rounded-[40px] overflow-hidden lg:h-[500px] lg:w-1/2 xl:h-[600px]">
-            <img src={pet.img} alt={pet.name} className="h-full w-full object-cover grayscale" />
-          </div>
-          <div className="flex w-full flex-col justify-center lg:w-1/2">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-3xl font-bold text-gray-900 m-0">{pet.name}</h3>
-              {pet.gender === "Female" ? <Icons.Female /> : <Icons.Male />}
+      <SwipeArea onNext={next} onPrev={prev} className="w-full">
+        <AnimatePresence mode="wait" custom={dir}>
+          <motion.div key={pet.id} custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4 }}
+            className="flex w-full flex-col gap-5 overflow-hidden bg-white lg:flex-row lg:gap-12">
+            <div className="h-[220px] w-full overflow-hidden rounded-[28px] sm:h-[320px] lg:h-[500px] lg:w-1/2 lg:rounded-[40px] xl:h-[600px]">
+              <img src={pet.img} alt={pet.name} className="h-full w-full object-cover grayscale" />
             </div>
-            <p className="text-gray-500 mb-6">{pet.info}</p>
-            <p className="text-gray-600 leading-relaxed mb-8">{pet.desc}</p>
-            <div className="flex flex-wrap gap-3 mb-10">
-              {pet.tags.map((tag) => (
-                <span key={tag.label} style={{ backgroundColor: tag.bg, color: tag.color, padding: "8px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: 700 }}>
-                  {tag.label}
-                </span>
-              ))}
+            <div className="flex w-full flex-col justify-center lg:w-1/2">
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="m-0 text-2xl font-bold text-gray-900 lg:text-3xl">{pet.name}</h3>
+                {pet.gender === "Female" ? <Icons.Female /> : <Icons.Male />}
+              </div>
+              <p className="mb-3 text-gray-500 lg:mb-6">{pet.info}</p>
+              <ClampText text={pet.desc} className="mb-4 leading-relaxed text-gray-600 lg:mb-8" />
+              <div className="mb-5 flex flex-wrap gap-2 lg:mb-10 lg:gap-3">
+                {pet.tags.map((tag) => (
+                  <span key={tag.label} style={{ backgroundColor: tag.bg, color: tag.color, padding: "8px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: 700 }}>{tag.label}</span>
+                ))}
+              </div>
+              <div className="flex gap-3 lg:gap-4">
+                <PrimaryBtn href={`${ROUTES.pets}/${pet.id}`}>Kết bạn ngay</PrimaryBtn>
+                <OutlineBtn onClick={() => setApplyPet(pet)}>Đăng ký nhận nuôi</OutlineBtn>
+              </div>
             </div>
-            <div className="flex gap-4">
-              {/* <ButtonLink href={`${ROUTES.pets}/${pet.id}`} variant="primary">Kết bạn ngay</ButtonLink> */}
-              <motion.a
-                href={`${ROUTES.pets}/${pet.id}`}
-                whileHover={{ filter: "brightness(1.15)" }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="flex-1 inline-flex items-center justify-center text-center text-white"
-                style={{
-                  backgroundColor: COLOR.brand,
-                  padding: "14px 28px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  borderRadius: "15px",
-                  fontFamily: FONT_BODY,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  cursor: "pointer",
-                  boxShadow: "0 8px 25px rgba(251,191,36,0.3)"
-                }}
-              >
-                Kết bạn ngay
-              </motion.a>
+          </motion.div>
+        </AnimatePresence>
+      </SwipeArea>
 
-              {/* Nút Mua thẻ QR: Đứng im, Fill nền và đổi màu chữ sang trắng khi hover */}
-              <motion.a
-                // href={ROUTES.qrShop}
-                onClick={() => setApplyPet(pet)}
-                initial={{ backgroundColor: "transparent", color: COLOR.brand }}
-                whileHover={{ backgroundColor: COLOR.brand, color: "#fff" }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-                className="flex-1 inline-flex items-center justify-center text-center"
-                style={{
-                  padding: "14px 28px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  borderRadius: "15px",
-                  fontFamily: FONT_BODY,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  border: `2px solid ${COLOR.brand}`,
-                  cursor: "pointer",
-                }}
-              >
-                Đăng ký nhận nuôi
-              </motion.a>
-
-            </div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
       <CarouselPagination total={pets.length} current={index} />
-
       {applyPet && <AdoptionFormModal pet={{ id: applyPet.id, name: applyPet.name, shelterName: applyPet.shelter }} onClose={() => setApplyPet(null)} />}
     </section>
   );
@@ -942,99 +931,65 @@ const PetsSection = () => {
 
 // VERIFIED SHELTERS
 const SheltersSection = () => {
-  const { index, next, prev } = useCarousel(MOCK_SHELTERS.length);
+  const { index, dir, next, prev } = useCarousel(MOCK_SHELTERS.length);
   const shelter = MOCK_SHELTERS[index];
 
   return (
-    <section id="shelters" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6 relative">
+    <section id="shelters" className="relative mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] flex-col items-center px-6 lg:px-20">
       <SectionHeading eyebrow="" title="Trạm cứu hộ xác minh" />
-
       <StackedCarouselControls onNext={next} onPrev={prev} position="right" className="absolute top-[60%] right-4 hidden lg:flex" />
 
-      <AnimatePresence mode="wait">
-        <motion.div key={shelter.name} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }} className="flex w-full flex-col-reverse items-center gap-12 lg:flex-row lg:items-start lg:gap-16">
-          <div className="flex w-full flex-col lg:w-[45%]">
-            <div className="flex items-center gap-4 mb-6">
-              <img src={shelter.img} alt="Logo" className="h-16 w-16 rounded-full object-cover" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[22px] font-bold text-gray-900">{shelter.name}</h3><Icons.Verified />
+      <SwipeArea onNext={next} onPrev={prev} className="w-full">
+        <AnimatePresence mode="wait" custom={dir}>
+          <motion.div key={shelter.name} custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4 }}
+            className="flex w-full flex-col-reverse items-center gap-5 lg:flex-row lg:items-start lg:gap-16">
+            {/* Chữ */}
+            <div className="flex w-full flex-col lg:w-[45%]">
+              <div className="mb-3 flex items-center gap-4 lg:mb-6">
+                <img src={shelter.img} alt="Logo" className="h-16 w-16 rounded-full object-cover" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[22px] font-bold text-gray-900">{shelter.name}</h3><Icons.Verified />
+                  </div>
+                  <p className="mt-1 flex items-center gap-1 text-sm text-gray-500">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                    {shelter.location}
+                  </p>
                 </div>
-                <p className="text-gray-500 mt-1 flex items-center gap-1 text-sm">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                  {shelter.location}
-                </p>
+              </div>
+              <ClampText text={shelter.desc} className="mb-4 leading-relaxed text-gray-600 lg:mb-8" />
+              <div className="mb-4 grid grid-cols-3 gap-4 lg:mb-8">
+                {shelter.stats.map((s: any) => (
+                  <div key={s.l}><div className="text-[22px] font-bold text-gray-900">{s.v}</div><div className="mt-1 text-[12px] text-gray-500">{s.l}</div></div>
+                ))}
+              </div>
+
+              {/* Mobile: ẩn đến khi bấm "Xem thêm" — PC luôn hiện */}
+              <MobileMore>
+                <div className="mb-4 h-px w-full bg-gray-100 lg:mb-8" />
+                <div className="mb-4 lg:mb-10">
+                  <h4 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Trạng thái xác minh</h4>
+                  <ul className="flex flex-col gap-3">
+                    {[`Xác minh từ ${shelter.since}`, "Báo cáo hoạt động đầy đủ", "Cam kết kiểm tra hậu nhận nuôi"].map((item) => (
+                      <li key={item} className="flex items-center gap-3 text-[14px] text-gray-600"><Icons.Dot /> {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </MobileMore>
+
+              <div className="flex gap-3 lg:gap-4">
+                <PrimaryBtn href={ROUTES.shelters}>Xem hồ sơ trạm</PrimaryBtn>
+                <OutlineBtn href={ROUTES.shelters}>Tất cả trạm</OutlineBtn>
               </div>
             </div>
-            <p className="text-gray-600 leading-relaxed mb-8">{shelter.desc}</p>
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              {shelter.stats.map((s: any) => (
-                <div key={s.l}><div className="text-[22px] font-bold text-gray-900">{s.v}</div><div className="text-[12px] text-gray-500 mt-1">{s.l}</div></div>
-              ))}
+            {/* Ảnh */}
+            <div className="w-full lg:w-[55%]">
+              <img src={shelter.img} alt="Shelter" className="h-[180px] w-full rounded-[28px] object-cover shadow-lg sm:h-[300px] lg:h-[600px] lg:rounded-[40px]" />
             </div>
-            <div className="h-px w-full bg-gray-100 mb-8" />
-            <div className="mb-10">
-              <h4 className="text-[11px] font-bold text-gray-500 tracking-wider mb-4 uppercase">Trạng thái xác minh</h4>
-              <ul className="flex flex-col gap-3">
-                {[`Xác minh từ ${shelter.since}`, "Báo cáo hoạt động đầy đủ", "Cam kết kiểm tra hậu nhận nuôi"].map(item => (
-                  <li key={item} className="flex items-center gap-3 text-gray-600 text-[14px]"><Icons.Dot /> {item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="flex gap-4">
-              {/* <ButtonLink href={ROUTES.shelters} variant="primary">Xem hồ sơ trạm</ButtonLink> */}
-              {/* <ButtonLink href={ROUTES.shelters} variant="outline" style={{ borderColor: COLOR.brand, color: COLOR.brand }}>Tất cả trạm</ButtonLink> */}
-              <motion.a
-                href={ROUTES.shelters}
-                whileHover={{ filter: "brightness(1.15)" }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="flex-1 inline-flex items-center justify-center text-center text-white"
-                style={{
-                  backgroundColor: COLOR.brand,
-                  padding: "14px 28px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  borderRadius: "15px",
-                  fontFamily: FONT_BODY,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  cursor: "pointer",
-                  boxShadow: "0 8px 25px rgba(251,191,36,0.3)"
-                }}
-              >
-                Xem hồ sơ trạm
-              </motion.a>
+          </motion.div>
+        </AnimatePresence>
+      </SwipeArea>
 
-              {/* Nút Mua thẻ QR: Đứng im, Fill nền và đổi màu chữ sang trắng khi hover */}
-              <motion.a
-                href={ROUTES.shelters}
-                initial={{ backgroundColor: "transparent", color: COLOR.brand }}
-                whileHover={{ backgroundColor: COLOR.brand, color: "#fff" }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-                className="flex-1 inline-flex items-center justify-center text-center"
-                style={{
-                  padding: "14px 28px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  borderRadius: "15px",
-                  fontFamily: FONT_BODY,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  border: `2px solid ${COLOR.brand}`,
-                  cursor: "pointer",
-                }}
-              >
-                Tất cả trạm
-              </motion.a>
-            </div>
-          </div>
-          <div className="w-full lg:w-[55%]">
-            <img src={shelter.img} alt="Shelter" className="h-[600px] w-full rounded-[40px] object-cover shadow-lg" />
-          </div>
-        </motion.div>
-      </AnimatePresence>
       <CarouselPagination total={MOCK_SHELTERS.length} current={index} />
     </section>
   );
@@ -1045,46 +1000,25 @@ const MythsSection = () => {
   const { index, next, prev } = useCarousel(MOCK_MYTHS.length);
 
   return (
-    <section id="myths" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6 relative">
+    <section id="myths" className="relative mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] flex-col items-center px-6 lg:px-20">
       <SectionHeading eyebrow="Nhận nuôi" title="Những hiểu lầm thường gặp" />
+      <StackedCarouselControls onNext={next} onPrev={prev} position="left" className="absolute top-[50%] left-4 z-20 hidden lg:flex" />
 
-      {/* Đặt nút ở lớp ngoài cùng của section với class "left-4" để gióng thẳng hàng với PetsSection */}
-      <StackedCarouselControls
-        onNext={next}
-        onPrev={prev}
-        position="left"
-        className="absolute top-[50%] left-4 hidden lg:flex z-20"
-      />
-
-      {/* Vùng chứa Carousel */}
-      <div className="relative w-full flex items-center">
-        {/* Khung bọc overflow (Chỉ cắt phần trượt ngang, không cắt nút) */}
-        <div className="w-full overflow-hidden">
-          <motion.div
-            animate={{ x: `-${index * 100}%` }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="flex w-full"
-          >
+      <div className="w-full overflow-hidden">
+        <SwipeArea onNext={next} onPrev={prev} className="w-full">
+          <motion.div animate={{ x: `-${index * 100}%` }} transition={{ type: "spring", stiffness: 300, damping: 30 }} className="flex w-full">
             {MOCK_MYTHS.map((myth, idx) => (
-              <div key={idx} className="relative flex w-full min-w-full flex-col items-center justify-center lg:flex-row lg:gap-16">
-
-                {/* Ảnh chó */}
-                <img src={myth.img} alt="Myth" className="h-[400px] w-[400px] rounded-[40px] object-cover z-10 shadow-sm lg:h-[500px] lg:w-[46%] lg:shrink-0 xl:h-[600px]" />
-
-                <div className="max-w-[400px] lg:max-w-[460px] z-10 text-center lg:text-left mt-8 lg:mt-0">
-                  <h3 className="text-3xl font-bold text-gray-900 mb-4 whitespace-pre-line">{myth.title}</h3>
-                  <p className="text-gray-500 leading-relaxed text-[15px]">{myth.desc}</p>
+              <div key={idx} className="relative flex w-full min-w-full shrink-0 flex-col items-center justify-center lg:flex-row lg:gap-16">
+                <img src={myth.img} alt="Myth" className="z-10 h-[220px] w-full rounded-[28px] object-cover shadow-sm sm:h-[320px] lg:h-[500px] lg:w-[46%] lg:shrink-0 lg:rounded-[40px] xl:h-[600px]" />
+                <div className="z-10 mt-4 w-full text-center lg:mt-0 lg:max-w-[460px] lg:text-left">
+                  <h3 className="mb-2 whitespace-pre-line text-2xl font-bold text-gray-900 lg:mb-4 lg:text-3xl">{myth.title}</h3>
+                  <ClampText text={myth.desc} className="text-[15px] leading-relaxed text-gray-500" />
                 </div>
-
-                {/* Chữ số đếm */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 text-[240px] font-black text-[#FBBF24] opacity-90 z-0 select-none hidden lg:block">
-                  {idx + 1}
-                </div>
-
+                <div className="absolute right-0 top-1/2 z-0 hidden -translate-y-1/2 select-none text-[240px] font-black text-[#FBBF24] opacity-90 lg:block">{idx + 1}</div>
               </div>
             ))}
           </motion.div>
-        </div>
+        </SwipeArea>
       </div>
 
       <CarouselPagination total={MOCK_MYTHS.length} current={index} />
@@ -1121,7 +1055,7 @@ const FaqItem = ({ question, answer }: { question: string; answer: string }) => 
 };
 
 const FaqSection = () => (
-  <section id="faq" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6">
+  <section id="faq" className="mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6">
     <SectionHeading eyebrow="" title="Hỏi đáp thường gặp" />
     <div className="flex w-full flex-col gap-4 mt-2">
       {FAQS.map((faq, i) => <FaqItem key={i} question={faq.question} answer={faq.answer} />)}
@@ -1131,57 +1065,38 @@ const FaqSection = () => (
 
 // REVIEWS (Ảnh 6 - Bổ sung Carousel dots ở dưới cùng)
 const ReviewsSection = () => {
-  const { index, next, prev } = useCarousel(MOCK_JOURNEYS.length);
+  const { index, dir, next, prev } = useCarousel(MOCK_JOURNEYS.length);
   const review = MOCK_JOURNEYS[index];
 
   return (
-    <section id="stories" className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center px-6 relative">
+    <section id="stories" className="relative mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] flex-col items-center px-6 lg:px-20">
       <SectionHeading eyebrow="Đánh giá" title="Câu chuyện hạnh phúc" />
-
       <StackedCarouselControls onNext={next} onPrev={prev} position="left" className="absolute top-[50%] left-4 hidden lg:flex" />
 
-      <AnimatePresence mode="wait">
-        <motion.div key={index} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.4 }} className="flex w-full flex-col lg:flex-row gap-16 items-stretch">
-          <img src={review.img} alt="Happy story" className="h-[500px] w-full lg:w-[45%] rounded-[40px] object-cover shadow-lg xl:h-[600px]" />
-          <div className="flex flex-col lg:w-[55%] justify-between py-4">
-            <div>
-              <div className="flex items-center gap-4 mb-8">
-                <img src={review.avatar} alt="Avatar" className="h-16 w-16 rounded-full object-cover" />
-                <div>
-                  <h4 className="text-[19px] font-bold text-gray-900">{review.name}</h4>
-                  <p className="text-[13px] text-gray-500">{review.info}</p>
+      <SwipeArea onNext={next} onPrev={prev} className="w-full">
+        <AnimatePresence mode="wait" custom={dir}>
+          <motion.div key={index} custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4 }}
+            className="flex w-full flex-col items-stretch gap-5 lg:flex-row lg:gap-16">
+            <img src={review.img} alt="Happy story" className="h-[220px] w-full rounded-[28px] object-cover shadow-lg sm:h-[320px] lg:h-[500px] lg:w-[45%] lg:rounded-[40px] xl:h-[600px]" />
+            <div className="flex flex-col justify-between py-0 lg:w-[55%] lg:py-4">
+              <div>
+                <div className="mb-3 flex items-center gap-4 lg:mb-8">
+                  <img src={review.avatar} alt="Avatar" className="h-16 w-16 rounded-full object-cover" />
+                  <div>
+                    <h4 className="text-[19px] font-bold text-gray-900">{review.name}</h4>
+                    <p className="text-[13px] text-gray-500">{review.info}</p>
+                  </div>
                 </div>
+                <ClampText text={review.desc} className="text-[16px] leading-relaxed text-gray-600" />
               </div>
-              <p className="text-gray-600 leading-relaxed text-[16px]">{review.desc}</p>
+              <div className="mt-4 flex lg:mt-8">
+                <OutlineBtn href={ROUTES.stories} className="w-full lg:w-auto" style={{ padding: "14px 28px" }}>Đọc thêm</OutlineBtn>
+              </div>
             </div>
-            <div className="mt-8">
-              <motion.a
-                href={ROUTES.stories}
-                initial={{ backgroundColor: "transparent", color: COLOR.brand }}
-                whileHover={{ backgroundColor: COLOR.brand, color: "#fff" }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-                className="flex-1 inline-flex items-center justify-center text-center"
-                style={{
-                  padding: "14px 28px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  borderRadius: "15px",
-                  fontFamily: FONT_BODY,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                  border: `2px solid ${COLOR.brand}`,
-                  cursor: "pointer",
-                }}
-              >
-                Đọc thêm
-              </motion.a>
-            </div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+          </motion.div>
+        </AnimatePresence>
+      </SwipeArea>
 
-      {/* Pagination cho Review */}
       <CarouselPagination total={MOCK_JOURNEYS.length} current={index} />
     </section>
   );
@@ -1189,7 +1104,7 @@ const ReviewsSection = () => {
 
 // PARTNER LOGOS
 const PartnerLogosSection = () => (
-  <section className="mx-auto mt-[160px] w-full overflow-hidden border-y border-gray-100 py-12 bg-white">
+  <section className="mx-auto mt-16 sm:mt-24 lg:mt-[160px] w-full overflow-hidden border-y border-gray-100 py-12 bg-white">
     <div className="flex w-full animate-[infinite-scroll_25s_linear_infinite] items-center gap-24 whitespace-nowrap">
       {[...MOCK_PARTNERS, ...MOCK_PARTNERS, ...MOCK_PARTNERS].map((src, i) => (
         <img key={i} src={src} alt="Partner Logo" className="h-10 object-contain opacity-40 grayscale hover:opacity-100 hover:grayscale-0 transition duration-300" />
@@ -1210,7 +1125,7 @@ const DownloadAppSection = () => {
   ];
 
   return (
-    <section className="mx-auto mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center justify-between gap-66 px-6 lg:flex-row">
+    <section className="mx-auto mt-16 sm:mt-24 lg:mt-[160px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center justify-between gap-12 lg:gap-66 px-6 lg:flex-row">
       {/* Cột trái: Mockup Điện Thoại */}
       <div className="relative flex-shrink-0">
         {/* Khối ánh sáng vàng (Glow effect) ở góc trên bên phải */}
@@ -1309,12 +1224,12 @@ const DownloadAppSection = () => {
 };
 
 // FOOTER (Full width, không padding giới hạn, 3 cột dàn đều giữa)
-const FooterSection = () => {
+export const FooterSection = () => {
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
   const year = new Date().getFullYear();
 
   return (
-    <footer className="w-full bg-[#FAFAFA] pt-20 pb-2 mt-[160px] relative border-t border-gray-100">
+    <footer className="w-full bg-[#FAFAFA] pt-20 pb-2 mt-16 sm:mt-24 lg:mt-[160px] relative border-t border-gray-100">
 
       {/* Vùng nội dung chính: Bỏ max-w, dùng px linh hoạt cho 2 bên mép */}
       <div className="flex w-full flex-col lg:flex-row px-8">
