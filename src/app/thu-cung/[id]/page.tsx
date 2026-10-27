@@ -90,14 +90,38 @@ export default function PublicPetDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               ))}
             </div>
+
+            {pet.shelter && (
+              <>
+                <hr className="border-gray-200" />
+                <div className="p-5">
+                  <p className="mb-3 text-xs font-bold text-gray-400">TRẠM CỨU HỘ</p>
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
+                      {pet.shelter.avatarUrl ? (
+                        <img
+                          src={pet.shelter.avatarUrl}
+                          alt={pet.shelter.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-gray-300">
+                          <HeartHandshake size={20} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-gray-900">{pet.shelter.name}</p>
+                      {pet.shelter.address && (
+                        <p className="line-clamp-2 text-xs text-gray-500">{pet.shelter.address}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          {pet.shelter && (
-            <div className={card}>
-              <p className="mb-1 text-xs font-bold text-gray-400">TRẠM CỨU HỘ</p>
-              <p className="text-sm font-semibold text-gray-900">{pet.shelter.name}</p>
-              {pet.shelter.address && <p className="text-xs text-gray-500">{pet.shelter.address}</p>}
-            </div>
-          )}
+
           {/* Nút Đăng ký (Desktop Only) - Thêm hidden lg:block */}
           <button type="button" onClick={() => setApplying(true)} className="hidden w-full rounded-full bg-[#E89B5A] py-3.5 text-base font-bold text-white shadow-lg transition hover:-translate-y-0.5 lg:block">
             Đăng ký nhận nuôi {pet.name}
@@ -201,16 +225,16 @@ export default function PublicPetDetailPage({ params }: { params: Promise<{ id: 
       </button>
 
       {applying && (
-        <AdoptionFormModal 
-          pet={{ 
-            id: pet.id, 
-            name: pet.name, 
+        <AdoptionFormModal
+          pet={{
+            id: pet.id,
+            name: pet.name,
             shelterName: pet.shelter?.name,
             avatarUrl: main || undefined,      // Lấy ảnh đã tính toán sẵn ở biến main
             ageLabel: ageLabel(pet.dob),       // Lấy label tuổi đã convert
             breed: show(pet.breed)             // Lấy tên giống loài đã convert
-          }} 
-          onClose={() => setApplying(false)} 
+          }}
+          onClose={() => setApplying(false)}
         />
       )}
     </div>
