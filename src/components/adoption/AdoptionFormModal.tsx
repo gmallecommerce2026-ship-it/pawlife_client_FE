@@ -36,6 +36,8 @@ const TERMS: [string, string][] = [
 const ERR: Record<string, string> = {
   'error.application_limit_reached': 'Bạn đang có 5 đơn chờ xử lý. Vui lòng đợi kết quả trước khi nộp thêm.',
   'error.application_already_submitted': 'Bạn đã nộp đơn cho bé này rồi.',
+  'error.invalid_phone': 'Số điện thoại không hợp lệ. Vui lòng kiểm tra lại.',
+  'error.pet_not_found': 'Bé này hiện không còn nhận đơn. Vui lòng chọn bé khác.',
 };
 const inputCls = 'w-full h-12 rounded-2xl border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none focus:border-[#E89B5A]';
 
@@ -165,7 +167,7 @@ export default function AdoptionFormModal({
         {step === 'done' && (
           <div className="px-6 py-14 text-center">
             <p className="text-xl font-bold text-gray-900">Gửi đơn thành công! 🎉</p>
-            <p className="mx-auto mt-3 max-w-sm text-sm text-gray-500">Cảm ơn bạn đã đăng ký nhận nuôi {pet.name}. {shelter} sẽ xem xét và liên hệ qua số điện thoại hoặc email bạn đã cung cấp. Hãy giữ điện thoại luôn sẵn sàng nhé!</p>
+            <p className="mx-auto mt-3 max-w-sm text-sm text-gray-500">Cảm ơn bạn đã đăng ký nhận nuôi {pet.name}. {shelter} sẽ xem xét và liên hệ qua số điện thoại hoặc email bạn đã cung cấp. Chúng mình đã gửi email xác nhận tới <b>{f.email}</b> (nếu chưa thấy, hãy kiểm tra thư mục Spam). Tải app PawLife và đăng nhập bằng email hoặc số điện thoại này để theo dõi đơn nhé!</p>
             <button type="button" onClick={onClose} className="mt-6 rounded-full bg-[#E89B5A] px-8 py-3 text-sm font-bold text-white">Đóng</button>
           </div>
         )}
