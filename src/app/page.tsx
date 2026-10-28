@@ -117,15 +117,15 @@ const MOCK_SHELTERS = [
 ];
 
 const MOCK_MYTHS = [
-  { 
-    title: "Chỉ thú cưng bị bệnh mới\nở trạm cứu hộ", 
-    desc: "Thú cưng tại trạm đều được gắn vi mạch, tẩy giun, tiêm phòng và triệt sản. Mọi quy trình y tế đều được thực hiện nghiêm ngặt theo lịch trình của bác sĩ thú y.", 
-    img: "/assets/piglet.png" 
+  {
+    title: "Chỉ thú cưng bị bệnh mới\nở trạm cứu hộ",
+    desc: "Thú cưng tại trạm đều được gắn vi mạch, tẩy giun, tiêm phòng và triệt sản. Mọi quy trình y tế đều được thực hiện nghiêm ngặt theo lịch trình của bác sĩ thú y.",
+    img: "/assets/piglet.png"
   },
-  { 
-    title: "Thú cưng ở trạm\nthường có vấn đề hành vi", 
-    desc: "Phần lớn các bé đến trạm do hoàn cảnh của chủ cũ (chuyển nhà, dị ứng, kinh tế) chứ không phải do tính cách của bé. Nhiều bé đã quen nếp sống trong nhà.", 
-    img: "/assets/piglet.png" 
+  {
+    title: "Thú cưng ở trạm\nthường có vấn đề hành vi",
+    desc: "Phần lớn các bé đến trạm do hoàn cảnh của chủ cũ (chuyển nhà, dị ứng, kinh tế) chứ không phải do tính cách của bé. Nhiều bé đã quen nếp sống trong nhà.",
+    img: "/assets/piglet.png"
   }
 ];
 
@@ -174,7 +174,9 @@ const Icons = {
   CheckCircle: ({ color = "#10B981" }) => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>,
   Verified: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" /></svg>,
   Dot: () => <svg width="8" height="8" viewBox="0 0 24 24" fill="#10B981" stroke="#10B981"><circle cx="12" cy="12" r="10" /></svg>,
-  Mouse: () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="7" /><line x1="12" y1="6" x2="12" y2="10" /></svg>
+  Mouse: () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="7" /><line x1="12" y1="6" x2="12" y2="10" /></svg>,
+  Menu: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
+  Close: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
 };
 
 const stepIcon = (key: (typeof PET_STEPS)[number]["icon"], color: string) => {
@@ -290,14 +292,14 @@ const OutlineBtn = ({ href, onClick, children, className = "flex-1", style }: an
 const SwipeArea = ({ onNext, onPrev, children, className = "" }: { onNext: () => void; onPrev: () => void; children: React.ReactNode; className?: string }) => {
   const x = useMotionValue(0);
   const active = useRef(false);
-  const MAX = 64;   
-  const GAIN = 1.4; 
+  const MAX = 64;
+  const GAIN = 1.4;
   const settle = () => animate(x, 0, { type: "spring", stiffness: 420, damping: 30 });
 
   return (
     <motion.div
       className={className}
-      style={{ x, touchAction: "pan-y" }} 
+      style={{ x, touchAction: "pan-y" }}
       onPanStart={(e, { offset }) => {
         active.current = (e as PointerEvent).pointerType !== "mouse" && Math.abs(offset.x) > Math.abs(offset.y);
       }}
@@ -421,6 +423,7 @@ const FloatingQrButton = () => {
 
 export const HeaderSection = () => {
   const [scrolled, setScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -430,6 +433,7 @@ export const HeaderSection = () => {
 
   return (
     <header className={`fixed left-0 top-0 z-50 w-full transition-all duration-400 ${scrolled ? "py-2" : "py-4"}`}>
+      {/* Background Overlay */}
       <div
         className="absolute inset-0 pointer-events-none transition-opacity duration-400"
         style={{
@@ -453,6 +457,8 @@ export const HeaderSection = () => {
 
       <div className="relative mx-auto flex w-full items-center justify-between px-6 z-10 max-w-[1392px]">
         <BrandLogo />
+
+        {/* Desktop Nav */}
         <nav className="hidden items-center gap-8 lg:flex">
           {NAV_LINKS.map((l) => (
             <Link
@@ -486,7 +492,79 @@ export const HeaderSection = () => {
             Đăng nhập
           </motion.a>
         </nav>
+
+        {/* Mobile Hamburger Icon */}
+        <button
+          className="lg:hidden flex items-center justify-center p-2 rounded-lg bg-white/50 hover:bg-gray-100 transition-colors"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        >
+          {isMobileMenuOpen ? <Icons.Close /> : <Icons.Menu />}
+        </button>
       </div>
+
+      {/* Mobile Menu Dropdown */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial="closed"
+            animate="open"
+            exit="closed"
+            variants={{
+              closed: {
+                opacity: 0,
+                height: 0,
+                transition: { duration: 0.3, staggerChildren: 0.05, staggerDirection: -1 }
+              },
+              open: {
+                opacity: 1,
+                height: "auto",
+                transition: { duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98], staggerChildren: 0.1, delayChildren: 0.1 }
+              }
+            }}
+            className="absolute top-full left-0 w-full overflow-hidden lg:hidden"
+          >
+            {/* Tấm nền kính mờ */}
+            <div className="bg-white/70 backdrop-blur-2xl border-t border-white/50 shadow-[0_30px_60px_rgba(0,0,0,0.08)] px-6 py-6 rounded-b-[24px]">
+              <div className="flex flex-col gap-2">
+                {NAV_LINKS.map((l) => (
+                  <motion.div
+                    key={l.label}
+                    variants={{
+                      closed: { opacity: 0, y: -15, filter: "blur(4px)" },
+                      open: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.4 } }
+                    }}
+                  >
+                    <Link
+                      href={l.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="block py-3.5 text-[16px] font-semibold text-gray-800 hover:text-[#9B87F5] border-b border-gray-900/5 transition-colors"
+                    >
+                      {l.label}
+                    </Link>
+                  </motion.div>
+                ))}
+
+                {/* Nút Đăng nhập */}
+                <motion.div
+                  variants={{
+                    closed: { opacity: 0, y: -10, scale: 0.95 },
+                    open: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4 } }
+                  }}
+                  className="mt-4"
+                >
+                  <Link
+                    href={ROUTES.signIn}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex w-full justify-center py-4 bg-gradient-to-r from-[#9B87F5] to-[#8B5CF6] text-white rounded-2xl font-bold text-[15px] shadow-[0_8px_20px_rgba(139,92,246,0.3)] active:scale-95 transition-all"
+                  >
+                    Đăng nhập
+                  </Link>
+                </motion.div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 };
@@ -879,28 +957,28 @@ const MythsSection = () => {
           <motion.div animate={{ x: `-${index * 100}%` }} transition={{ type: "spring", stiffness: 300, damping: 30 }} className="flex w-full items-center">
             {MOCK_MYTHS.map((myth, idx) => (
               <div key={idx} className="relative flex w-full min-w-full shrink-0 flex-col items-center justify-center lg:flex-row lg:justify-between lg:gap-8 px-4 lg:px-12 py-8">
-                
+
                 {/* 1. Ảnh Piglet Cutout */}
                 <div className="z-10 w-full lg:w-[40%] flex justify-center lg:justify-start">
-                  <img 
-                    src={myth.img} 
-                    alt="Myth" 
-                    className="h-[260px] sm:h-[350px] lg:h-[450px] xl:h-[500px] object-contain object-bottom drop-shadow-2xl origin-bottom scale-100 lg:scale-110" 
+                  <img
+                    src={myth.img}
+                    alt="Myth"
+                    className="h-[260px] sm:h-[350px] lg:h-[450px] xl:h-[500px] object-contain object-bottom drop-shadow-2xl origin-bottom scale-100 lg:scale-110"
                   />
                 </div>
-                
+
                 {/* 2. Nội dung Title & Text lệch nhau */}
                 <div className="z-10 mt-8 w-full text-center lg:mt-0 lg:w-[50%] lg:text-left flex flex-col justify-center relative">
                   <h3 className="mb-4 whitespace-pre-line text-2xl font-black text-[#111827] lg:mb-6 lg:text-[38px] lg:leading-[1.25] font-['Be_Vietnam_Pro'] tracking-tight">
                     {myth.title}
                   </h3>
-                  
+
                   {/* Khối text được đẩy lùi vào trong để tạo tỷ lệ lệch */}
                   <div className="lg:ml-[15%] lg:pr-12">
                     <ClampText text={myth.desc} className="text-[15px] leading-relaxed text-gray-500 lg:text-[16px]" />
                   </div>
                 </div>
-                
+
                 {/* 3. Số thứ tự khổng lồ (Giant Number) */}
                 <div className="absolute right-0 top-1/2 z-0 hidden -translate-y-1/2 select-none text-[150px] lg:text-[250px] font-black text-[#FDB022] lg:block leading-none tracking-tighter" style={{ fontFamily: "'Be Vietnam Pro', sans-serif" }}>
                   {idx + 1}
@@ -911,7 +989,7 @@ const MythsSection = () => {
           </motion.div>
         </SwipeArea>
       </div>
-      
+
       <CarouselPagination total={MOCK_MYTHS.length} current={index} />
     </section>
   );
