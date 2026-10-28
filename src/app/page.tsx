@@ -455,54 +455,59 @@ export const HeaderSection = () => {
         <div className="absolute top-0 left-0 w-full h-[1px] bg-white/20" />
       </div>
 
-      <div className="relative mx-auto flex w-full items-center justify-between px-6 z-10 max-w-[1392px]">
+      <div className="relative mx-auto flex w-full items-center justify-between px-6 z-20 max-w-[1392px]">
         <BrandLogo />
-
-        {/* Desktop Nav */}
-        <nav className="hidden items-center gap-8 lg:flex">
-          {NAV_LINKS.map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              className="group relative py-1 text-[14px] font-semibold text-gray-800 hover:text-[#9B87F5] transition-colors font-['Inter']"
+        
+        {/* Khối bên phải (Bọc chung để tránh bị vỡ Flexbox trên Mobile) */}
+        <div className="flex items-center gap-4">
+          
+          {/* Desktop Nav */}
+          <nav className="hidden items-center gap-8 lg:flex">
+            {NAV_LINKS.map((l) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                className="group relative py-1 text-[14px] font-semibold text-gray-800 hover:text-[#9B87F5] transition-colors font-['Inter']"
+              >
+                {l.label}
+                <span className="absolute left-0 bottom-0 h-[2px] w-0 bg-[#9B87F5] transition-all duration-300 ease-out group-hover:w-full" />
+              </Link>
+            ))}
+            <motion.a
+              href={ROUTES.signIn}
+              initial={{ backgroundColor: "transparent", color: COLOR.purple }}
+              whileHover={{ backgroundColor: COLOR.purple, color: "#fff" }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="inline-flex items-center justify-center text-center"
+              style={{
+                padding: "10px 18px",
+                fontSize: "14px",
+                fontWeight: 700,
+                borderRadius: "12px",
+                fontFamily: FONT_BODY,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                border: `2px solid ${COLOR.purple}`,
+                cursor: "pointer",
+              }}
             >
-              {l.label}
-              <span className="absolute left-0 bottom-0 h-[2px] w-0 bg-[#9B87F5] transition-all duration-300 ease-out group-hover:w-full" />
-            </Link>
-          ))}
-          <motion.a
-            href={ROUTES.signIn}
-            initial={{ backgroundColor: "transparent", color: COLOR.purple }}
-            whileHover={{ backgroundColor: COLOR.purple, color: "#fff" }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.3 }}
-            className="flex-1 inline-flex items-center justify-center text-center"
-            style={{
-              padding: "10px 18px",
-              fontSize: "14px",
-              fontWeight: 700,
-              borderRadius: "12px",
-              fontFamily: FONT_BODY,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-              border: `2px solid ${COLOR.purple}`,
-              cursor: "pointer",
-            }}
-          >
-            Đăng nhập
-          </motion.a>
-        </nav>
+              Đăng nhập
+            </motion.a>
+          </nav>
 
-        {/* Mobile Hamburger Icon */}
-        <button
-          className="lg:hidden flex items-center justify-center p-2 rounded-lg bg-white/50 hover:bg-gray-100 transition-colors"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        >
-          {isMobileMenuOpen ? <Icons.Close /> : <Icons.Menu />}
-        </button>
+          {/* Mobile Hamburger Icon */}
+          <button
+            className="flex lg:hidden items-center justify-center p-2.5 rounded-xl bg-gray-100/80 text-gray-800 hover:bg-gray-200 transition-colors z-50 cursor-pointer"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle Menu"
+          >
+            {isMobileMenuOpen ? <Icons.Close /> : <Icons.Menu />}
+          </button>
+        </div>
       </div>
 
-      {/* Mobile Menu Dropdown */}
+      {/* Mobile Menu Dropdown - Kiểu Glassmorphism & Hiệu ứng Stagger */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
@@ -510,24 +515,24 @@ export const HeaderSection = () => {
             animate="open"
             exit="closed"
             variants={{
-              closed: {
-                opacity: 0,
-                height: 0,
-                transition: { duration: 0.3, staggerChildren: 0.05, staggerDirection: -1 }
+              closed: { 
+                opacity: 0, 
+                height: 0, 
+                transition: { duration: 0.3, staggerChildren: 0.05, staggerDirection: -1 } 
               },
-              open: {
-                opacity: 1,
-                height: "auto",
-                transition: { duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98], staggerChildren: 0.1, delayChildren: 0.1 }
+              open: { 
+                opacity: 1, 
+                height: "auto", 
+                transition: { duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98], staggerChildren: 0.1, delayChildren: 0.1 } 
               }
             }}
-            className="absolute top-full left-0 w-full overflow-hidden lg:hidden"
+            className="absolute top-full left-0 w-full overflow-hidden lg:hidden z-10"
           >
-            {/* Tấm nền kính mờ */}
-            <div className="bg-white/70 backdrop-blur-2xl border-t border-white/50 shadow-[0_30px_60px_rgba(0,0,0,0.08)] px-6 py-6 rounded-b-[24px]">
+            {/* Tấm nền kính mờ (Glassmorphism) */}
+            <div className="bg-white/80 backdrop-blur-xl border-t border-white/50 shadow-[0_30px_60px_rgba(0,0,0,0.08)] px-6 py-6 rounded-b-[24px]">
               <div className="flex flex-col gap-2">
                 {NAV_LINKS.map((l) => (
-                  <motion.div
+                  <motion.div 
                     key={l.label}
                     variants={{
                       closed: { opacity: 0, y: -15, filter: "blur(4px)" },
@@ -543,8 +548,8 @@ export const HeaderSection = () => {
                     </Link>
                   </motion.div>
                 ))}
-
-                {/* Nút Đăng nhập */}
+                
+                {/* Nút Đăng nhập Mobile */}
                 <motion.div
                   variants={{
                     closed: { opacity: 0, y: -10, scale: 0.95 },
@@ -555,7 +560,7 @@ export const HeaderSection = () => {
                   <Link
                     href={ROUTES.signIn}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex w-full justify-center py-4 bg-gradient-to-r from-[#9B87F5] to-[#8B5CF6] text-white rounded-2xl font-bold text-[15px] shadow-[0_8px_20px_rgba(139,92,246,0.3)] active:scale-95 transition-all"
+                    className="flex w-full justify-center py-4 bg-gradient-to-r from-[#9B87F5] to-[#8B5CF6] text-white rounded-[14px] font-bold text-[15px] shadow-[0_8px_20px_rgba(139,92,246,0.3)] active:scale-95 transition-all"
                   >
                     Đăng nhập
                   </Link>
