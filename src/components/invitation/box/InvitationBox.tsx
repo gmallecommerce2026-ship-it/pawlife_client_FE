@@ -69,6 +69,51 @@ export function InvitationBox({
   const logoNode = logo ?? <DefaultBoxLogo color={color} />;
   const RD = size * recessRatio; // đường kính lõm
   const hasRecess = RD > 0;
+  /* Chốt gài ở cạnh gấp phía trước của nắp: nửa hình tròn dài 0.8 cm ở giữa, hai mấu nhọn hai bên */
+  const TAB_W = size * 0.1;
+  const TAB_H = size * 0.05;
+  const HOOK = size * 0.03;
+  const skirtTab = (
+    <>
+      <div
+        aria-hidden
+        style={{
+          ...abs,
+          left: "50%",
+          top: 0,
+          width: TAB_W,
+          height: TAB_H,
+          transform: "translateX(-50%)",
+          background: color,
+          borderRadius: `0 0 ${TAB_W / 2}px ${TAB_W / 2}px`,
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          ...abs,
+          left: `calc(50% - ${TAB_W / 2 + HOOK}px)`,
+          top: 0,
+          width: HOOK,
+          height: HOOK * 1.6,
+          background: color,
+          clipPath: "polygon(0 0, 100% 0, 50% 100%)",
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          ...abs,
+          left: `calc(50% + ${TAB_W / 2}px)`,
+          top: 0,
+          width: HOOK,
+          height: HOOK * 1.6,
+          background: color,
+          clipPath: "polygon(0 0, 100% 0, 50% 100%)",
+        }}
+      />
+    </>
+  );
 
   const logoBox: CSSProperties = {
     ...abs,
@@ -92,9 +137,9 @@ export function InvitationBox({
   });
 
   /* Mặt có hai phía: ngoài (màu hộp) và trong (lót). Cùng vị trí, mặt trong lật ngược pháp tuyến. */
-  const panel = (w: number, h: number, t: string, outer: CSSProperties, inner: CSSProperties) => (
+  const panel = (w: number, h: number, t: string, outer: CSSProperties, inner: CSSProperties, children?: ReactNode) => (
     <>
-      <div style={plane(w, h, t, color, { ...ONE_SIDED, ...outer })} />
+      <div style={plane(w, h, t, color, { ...ONE_SIDED, ...outer })}>{children}</div>
       <div style={plane(w, h, `${t} rotateY(180deg)`, lining, { ...ONE_SIDED, ...inner })} />
     </>
   );
@@ -160,8 +205,8 @@ export function InvitationBox({
         {/* Bốn thành ngoài, dày H (1 cm). Mặt ngoài màu hộp, mặt trong màu lót. */}
         {panel(W, H, `translate3d(0, ${D / 2}px, ${H / 2}px) rotateX(-90deg)`, {}, { background: lining })}
         {panel(W, H, `translate3d(0, ${-D / 2}px, ${H / 2}px) rotateX(90deg)`, {}, { background: lining })}
-        {panel(D, H, `translate3d(${-W / 2}px, 0, ${H / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: lining })}
-        {panel(D, H, `translate3d(${W / 2}px, 0, ${H / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: lining })}
+        {panel(D, H, `translate3d(${-W / 2}px, 0, ${H / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: color })}
+        {panel(D, H, `translate3d(${W / 2}px, 0, ${H / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: color })}
 
         {/* Nắp: bản lề ở cạnh xa (y âm), mở 0 → 100° quanh trục ngang. Gốc nắp đặt tại bản lề, ở độ cao H. */}
         <div
@@ -194,10 +239,10 @@ export function InvitationBox({
           </div>
 
           {/* Gờ cạnh nắp thò xuống để gài vào thân khi đóng (4 cạnh) */}
-          {panel(W - 2 * IN, SK, `translate3d(0, ${D - IN}px, ${-SK / 2}px) rotateX(-90deg)`, {}, { background: lining })}
+          {panel(W - 2 * IN, SK, `translate3d(0, ${D - IN}px, ${-SK / 2}px) rotateX(-90deg)`, {}, { background: lining }, skirtTab)}
           {panel(W - 2 * IN, SK, `translate3d(0, ${IN}px, ${-SK / 2}px) rotateX(90deg)`, {}, { background: lining })}
-          {panel(D - 2 * IN, SK, `translate3d(${-(W / 2 - IN)}px, ${D / 2}px, ${-SK / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: lining })}
-          {panel(D - 2 * IN, SK, `translate3d(${W / 2 - IN}px, ${D / 2}px, ${-SK / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: lining })}
+          {panel(D - 2 * IN, SK, `translate3d(${-(W / 2 - IN)}px, ${D / 2}px, ${-SK / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: color })}
+          {panel(D - 2 * IN, SK, `translate3d(${W / 2 - IN}px, ${D / 2}px, ${-SK / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: color })}
         </div>
       </div>
     </div>

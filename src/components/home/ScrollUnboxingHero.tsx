@@ -37,7 +37,7 @@ const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
 // Hộp 8 cm chiếm 80% màn cảnh; tag ≈ 3.2 cm = 40% cạnh hộp → 32% màn cảnh (tỉ lệ thật)
-const TAG_BOX = 32;
+const TAG_BOX = 48; // ring 2.75 cm = 34% cạnh hộp 8 cm
 // Hộp chiếm 80% cảnh; lõm trong đáy hộp có đường kính bằng đúng vòng (+3% khe hở)
 const BOX_SCALE = 0.8;
 const RING_IN_BOX = (RING_SCREEN_FRACTION * TAG_BOX) / (BOX_SCALE * 100);
@@ -94,7 +94,7 @@ const POS: Record<Side, string> = {
 /* ------------------------------------------------------------------ */
 /*  QUỸ ĐẠO CỦA TAG (cong, không đi thẳng)                             */
 /* ------------------------------------------------------------------ */
-const SIDE_X = 62;  // lệch sang trái/phải (% chiều rộng tag)
+const SIDE_X = 52;  // lệch sang trái/phải (% chiều rộng tag)
 const SIDE_C = 36;  // tâm dọc khi đứng bên
 const P_CENTER = { x: 0, y: toY(50) }; // giữa hộp = giữa banner
 const P_RIGHT = { x: SIDE_X, y: toY(SIDE_C) };
