@@ -92,9 +92,9 @@ export function InvitationBox({
     <>
       <div aria-hidden style={{ ...abs, left: 0, top: 0, width: W, height: CREASE, background: creaseBg }} />
       <div aria-hidden style={{ ...abs, left: 0, top: D - IN, width: W, height: CREASE, background: creaseBg }} />
-      <div style={faceText({ left: size * 0.06, top: size * 0.05, fontSize: size * 0.05 })}>{brandName}</div>
-      <div style={faceText({ right: size * 0.06, top: size * 0.055, fontSize: size * 0.04 })}>{productName}</div>
-      <div style={faceText({ left: 0, right: 0, bottom: size * 0.05, textAlign: "center", fontSize: size * 0.026, fontWeight: 500, opacity: 0.9 })}>{tagline}</div>
+      <div style={faceText({ left: size * 0.06, top: size * 0.05, fontSize: size * 0.034, fontWeight: 500, letterSpacing: "0.02em" })}>{brandName}</div>
+      <div style={faceText({ right: size * 0.06, top: size * 0.055, fontSize: size * 0.027, fontWeight: 400, letterSpacing: "0.02em" })}>{productName}</div>
+      <div style={faceText({ left: 0, right: 0, bottom: size * 0.05, textAlign: "center", fontSize: size * 0.02, fontWeight: 400, opacity: 0.85 })}>{tagline}</div>
     </>
   );
   const skirtTab = (

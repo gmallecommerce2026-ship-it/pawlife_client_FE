@@ -7,19 +7,21 @@
 //  - Đĩa xoay quanh trục đứng theo tiến độ cuộn; độ sáng thay đổi theo góc quay để có bóng khi xoay ngang
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RING_RADIUS, CAM_Z, CAM_FOV } from './ringConfig';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
 const RADIUS = RING_RADIUS;   // bán kính đĩa; 1 đơn vị ≈ 1.375 cm
 const HALF_THICK = 0.173;     // nửa độ dày: 0.475 cm / 2.75 cm × (đường kính 2 đơn vị)
-const EDGE = 0.13;            // bán kính bo mép
-const DISH = 0.03;            // độ lõm nhẹ của mặt trước và mặt sau (đơn vị 3D)
-// Khe xỏ dây: viên nang dài 0.5 cm, rộng 0.2 cm, cách mép trên khoảng 0.14 cm
-const HOLE_Y = 0.72;
-const HOLE_LEN = 0.364;
-const HOLE_HALF_W = 0.0725;
+const EDGE = 0.16;            // bán kính bo mép (gần bằng nửa dày: viền tròn đều)
+const DISH = 0.03;            // độ lõm nhẹ của mặt trước và mặt sau (đơn vị 3D); tiếp tuyến = 0 ở mép
+// Khe ghim: cung tròn đồng tâm với viền, dài ~0.5 cm, rộng ~0.2 cm, nằm ở mép trên
+const HOLE_R_IN = RADIUS - 0.2;
+const HOLE_R_OUT = RADIUS - 0.055;
+const HOLE_CENTER = Math.PI / 2;
+const HOLE_HALF_ANG = 0.2;
 // Độ sáng thấp nhất khi mặt quay sang cạnh (0 → 1), tạo bóng khi xoay qua
 const SHADE_MIN = 0.42;
 const NS = 256; // số mẫu quanh đĩa
@@ -42,12 +44,13 @@ function spinAt(t: number): number {
   return SPIN_A[SPIN_A.length - 1];
 }
 
-/* Khe xỏ dây: kiểm tra điểm (x, y) có nằm trong viên nang không */
+/* Khe ghim: điểm (x, y) có nằm trong cung khe không */
 function inHole(x: number, y: number): boolean {
-  const y1 = HOLE_Y - (HOLE_LEN / 2 - HOLE_HALF_W);
-  const y2 = HOLE_Y + (HOLE_LEN / 2 - HOLE_HALF_W);
-  const dy = Math.min(Math.max(y, y1), y2) - y;
-  return x * x + dy * dy < HOLE_HALF_W * HOLE_HALF_W;
+  const r = Math.hypot(x, y);
+  if (r < HOLE_R_IN || r > HOLE_R_OUT) return false;
+  let d = Math.atan2(y, x) - HOLE_CENTER;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  return Math.abs(d) <= HOLE_HALF_ANG;
 }
 
 type ProfilePt = { r: number; z: number; nr: number; nz: number; g: number };
@@ -61,9 +64,9 @@ function makeRingGeometry(): THREE.BufferGeometry {
   const e = EDGE;
   const rE = R - e;
 
+  const dishSlope = (r: number) => (4 * DISH * r * (1 - (r / rE) ** 2)) / (rE * rE);
   const capNormal = (r: number, top: boolean): [number, number] => {
-    const fp = (2 * DISH * r) / (rE * rE);
-    const nr = -fp;
+    const nr = -dishSlope(r);
     const nz = top ? 1 : -1;
     const l = Math.hypot(nr, nz);
     return [nr / l, nz / l];
@@ -74,7 +77,7 @@ function makeRingGeometry(): THREE.BufferGeometry {
   for (let i = 0; i <= NC; i++) {
     const r = (rE * i) / NC;
     const [nr, nz] = capNormal(r, true);
-    prof.push({ r, z: h - DISH * (1 - (r / rE) ** 2), nr, nz, g: 0 });
+    prof.push({ r, z: h - DISH * (1 - (r / rE) ** 2) ** 2, nr, nz, g: 0 });
   }
   // Mép trên: cung từ (rE, h) xuống (R, h - e)
   for (let k = 1; k <= NA; k++) {
@@ -90,7 +93,7 @@ function makeRingGeometry(): THREE.BufferGeometry {
   for (let i = NC - 1; i >= 0; i--) {
     const r = (rE * i) / NC;
     const [nr, nz] = capNormal(r, false);
-    prof.push({ r, z: -h + DISH * (1 - (r / rE) ** 2), nr, nz, g: 2 });
+    prof.push({ r, z: -h + DISH * (1 - (r / rE) ** 2) ** 2, nr, nz, g: 2 });
   }
 
   const M = prof.length;
@@ -118,7 +121,7 @@ function makeRingGeometry(): THREE.BufferGeometry {
   const groups: number[][] = [[], [], []];
   const idx = (j: number, i: number) => j * NS + (i % NS);
   const zTop = (r: number) =>
-    r < rE ? h - DISH * (1 - (r / rE) ** 2) : h - e + e * Math.sqrt(Math.max(0, 1 - ((r - rE) / e) ** 2));
+    r < rE ? h - DISH * (1 - (r / rE) ** 2) ** 2 : h - e + e * Math.sqrt(Math.max(0, 1 - ((r - rE) / e) ** 2));
   const tri = (q: number[], a: number, b: number, c: number) => {
     // đảm bảo thứ tự đỉnh cùng chiều với pháp tuyến
     const fn = new THREE.Vector3().subVectors(V(b), V(a)).cross(new THREE.Vector3().subVectors(V(c), V(a)));
@@ -129,31 +132,31 @@ function makeRingGeometry(): THREE.BufferGeometry {
     }
   };
 
-  // Vách trong của khe: viên nang, đi từ mặt trước xuống mặt sau
-  const NH = 72;
-  const yA = HOLE_Y - (HOLE_LEN / 2 - HOLE_HALF_W);
-  const yB = HOLE_Y + (HOLE_LEN / 2 - HOLE_HALF_W);
+  // Vách trong của khe: đi quanh cung trong rồi cung ngoài, pháp tuyến hướng vào lòng khe
+  const NH = 24;
+  const wallPts: [number, number, number, number][] = [];
+  for (let k = 0; k <= NH; k++) {
+    const th = HOLE_CENTER - HOLE_HALF_ANG + (2 * HOLE_HALF_ANG * k) / NH;
+    wallPts.push([HOLE_R_IN * Math.cos(th), HOLE_R_IN * Math.sin(th), Math.cos(th), Math.sin(th)]);
+  }
+  for (let k = 0; k <= NH; k++) {
+    const th = HOLE_CENTER + HOLE_HALF_ANG - (2 * HOLE_HALF_ANG * k) / NH;
+    wallPts.push([HOLE_R_OUT * Math.cos(th), HOLE_R_OUT * Math.sin(th), -Math.cos(th), -Math.sin(th)]);
+  }
   const wallBase = pos.length / 3;
-  for (let k = 0; k < NH; k++) {
-    const phi = (2 * Math.PI * k) / NH;
-    const cs = Math.cos(phi);
-    const sn = Math.sin(phi);
-    const x = HOLE_HALF_W * cs;
-    const y = (sn > 0 ? yB : yA) + HOLE_HALF_W * sn;
+  for (const [x, y, nx, ny] of wallPts) {
     const zt = zTop(Math.hypot(x, y));
-    // pháp tuyến hướng vào trong lỗ
     pos.push(x, y, zt, x, y, -zt);
-    nor.push(-cs, -sn, 0, -cs, -sn, 0);
+    nor.push(nx, ny, 0, nx, ny, 0);
     uv.push(0, 0, 0, 0);
   }
-  for (let k = 0; k < NH; k++) {
-    const k2 = (k + 1) % NH;
+  const W2 = wallPts.length;
+  for (let k = 0; k < W2; k++) {
+    const k2 = (k + 1) % W2;
     const aT = wallBase + 2 * k;
-    const aB = aT + 1;
     const bT = wallBase + 2 * k2;
-    const bB = bT + 1;
-    tri(groups[1], aT, aB, bB);
-    tri(groups[1], aT, bB, bT);
+    tri(groups[1], aT, aT + 1, bT + 1);
+    tri(groups[1], aT, bT + 1, bT);
   }
 
   for (let j = 0; j < M - 1; j++) {
@@ -198,7 +201,7 @@ function seeded(seed: number) {
 
 /* Mặt trước dự phòng: vẽ bằng canvas khi chưa có file /images/qr-tag-only.webp. */
 function makeFrontFallback(): THREE.CanvasTexture {
-  const S = 512;
+  const S = 1024;
   const canvas = document.createElement('canvas');
   canvas.width = S;
   canvas.height = S;
@@ -223,8 +226,31 @@ function makeFrontFallback(): THREE.CanvasTexture {
 }
 
 /* Mặt sau: QR nhỏ ở giữa, nhãn PL-02516 bên dưới */
-function makeBackTexture(): THREE.CanvasTexture {
+/* Hạt men: nhiễu mịn dùng làm bản đồ độ nhám và bump, tạo vi chi tiết bề mặt sứ */
+function makeGrainTexture(): THREE.CanvasTexture {
   const S = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = S;
+  canvas.height = S;
+  const g = canvas.getContext('2d')!;
+  const img = g.createImageData(S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 185 + Math.floor(Math.random() * 70);
+    img.data[i] = v;
+    img.data[i + 1] = v;
+    img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  return tex;
+}
+
+function makeBackTexture(): THREE.CanvasTexture {
+  const S = 1024;
   const N = 25;
   const canvas = document.createElement('canvas');
   canvas.width = S;
@@ -272,6 +298,21 @@ function makeBackTexture(): THREE.CanvasTexture {
 }
 
 function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
+  const { gl, scene } = useThree();
+  const maxAniso = gl.capabilities.getMaxAnisotropy();
+
+  // Phòng studio phản chiếu: cho men sứ có highlight và độ bóng thật khi xoay
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = env;
+    return () => {
+      scene.environment = null;
+      env.dispose();
+      pmrem.dispose();
+    };
+  }, [gl, scene]);
+
   const [frontTex, setFrontTex] = useState<THREE.Texture>(() => makeFrontFallback());
   useEffect(() => {
     let alive = true;
@@ -280,6 +321,7 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
       (t) => {
         if (!alive) return;
         t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = maxAniso;
         setFrontTex(t);
       },
       undefined,
@@ -290,42 +332,39 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [maxAniso]);
   const backTex = useMemo(() => makeBackTexture(), []);
+  const grain = useMemo(() => makeGrainTexture(), []);
+  useEffect(() => {
+    frontTex.anisotropy = maxAniso;
+    backTex.anisotropy = maxAniso;
+  }, [frontTex, backTex, maxAniso]);
   const ring = useMemo(() => makeRingGeometry(), []);
 
+  // Men sứ: nhám vừa, có hạt nhỏ, lớp phủ bóng mỏng, phản xạ theo môi trường
+  const enamel = {
+    roughness: 0.38,
+    roughnessMap: grain,
+    bumpMap: grain,
+    bumpScale: 0.4,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.06,
+    ior: 1.5,
+    specularIntensity: 0.6,
+    envMapIntensity: 1.1,
+  };
+
   const bodyMat = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        color: '#FFFFFF',
-        roughness: 0.3,
-        clearcoat: 1,
-        clearcoatRoughness: 0.1,
-        side: THREE.DoubleSide,
-      }),
-    [],
+    () => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', ...enamel, side: THREE.DoubleSide }),
+    [grain],
   );
   const frontMat = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        map: frontTex,
-        roughness: 0.25,
-        clearcoat: 1,
-        clearcoatRoughness: 0.08,
-        side: THREE.DoubleSide,
-      }),
-    [frontTex],
+    () => new THREE.MeshPhysicalMaterial({ map: frontTex, ...enamel, side: THREE.DoubleSide }),
+    [frontTex, grain],
   );
   const backMat = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        map: backTex,
-        roughness: 0.25,
-        clearcoat: 1,
-        clearcoatRoughness: 0.08,
-        side: THREE.DoubleSide,
-      }),
-    [backTex],
+    () => new THREE.MeshPhysicalMaterial({ map: backTex, ...enamel, side: THREE.DoubleSide }),
+    [backTex, grain],
   );
 
   const spin = useRef<THREE.Group>(null);

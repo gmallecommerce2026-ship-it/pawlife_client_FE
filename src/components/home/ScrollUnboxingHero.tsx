@@ -32,6 +32,8 @@ const QrTag3DCanvas = dynamic(() => import('./QrTag3DCanvas'), { ssr: false });
 /*  CẤU HÌNH                                                           */
 /* ------------------------------------------------------------------ */
 export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
+// Logo trên hộp lấy đúng logo trên vòng
+const RING_LOGO = '/images/qr-tag-only.webp';
 const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
@@ -141,9 +143,11 @@ function curve(keys: Key[], n = 360): { t: number[]; v: number[] } {
 }
 
 // Vòng: x, y theo % chiều rộng/cao của vòng; z theo px (đưa về phía camera); tilt theo độ
-const RING_X = curve([[0, 0], [0.22, 0], [0.3, 0], [0.4, -70], [0.52, -70], [0.66, -10], [0.72, 70], [0.8, 70], [0.9, 0], [1, 0]]);
+const RING_X = curve([[0, 0], [0.22, 0], [0.3, 0], [0.4, -75], [0.52, -75], [0.66, -12], [0.72, 75], [0.8, 75], [0.9, 0], [1, 0]]);
 const RING_Y = curve([[0, 0], [0.22, 0], [0.3, -6], [0.4, -14], [0.52, -4], [0.66, 0], [0.72, 6], [0.8, -4], [0.9, -18], [1, -18]]);
-const RING_Z = curve([[0, 0], [0.22, 0], [0.3, 110], [0.4, 200], [0.52, 210], [0.66, 180], [0.72, 200], [0.8, 190], [0.9, 170], [1, 170]]);
+const RING_Z = curve([[0, 0], [0.22, 0], [0.3, 120], [0.4, 240], [0.52, 340], [0.66, 260], [0.72, 340], [0.8, 280], [0.9, 200], [1, 200]]);
+// Xoay ngang theo quỹ đạo: vòng nghiêng vào trong khi bay, tạo cảm giác điện ảnh
+const RING_YAW = curve([[0, 0], [0.3, 0], [0.4, -28], [0.52, -34], [0.66, -10], [0.72, 30], [0.8, 20], [0.9, 0], [1, 0]]);
 const RING_TILT = curve([[0, BOX_TILT], [0.22, BOX_TILT], [0.3, 18], [0.4, 4], [0.52, 0], [0.7, 0], [0.8, -6], [0.9, 0], [1, 0]]);
 // Camera "dolly": cảnh tiến nhẹ khi vòng bay gần, lùi lại khi vòng về giữa
 const CAM = curve([[0, 1], [0.3, 1.02], [0.5, 1.06], [0.75, 1.03], [1, 1.0]]);
@@ -250,7 +254,7 @@ function ScrollBox({ open, size }: { open: MotionValue<number>; size: number }) 
       size={size}
       color={COLOR.brand}
       lining="#FFFDF9"
-      logo={<img src={BRAND_LOGO} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+      logo={<img src={RING_LOGO} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
       tilt={BOX_TILT}
       recessRatio={RECESS_RATIO}
     />
@@ -302,6 +306,7 @@ export default function ScrollUnboxingHero() {
   const tagY = useTransform(p, RING_Y.t, RING_Y.v.map((y) => `${y}%`));
   const tagZ = useTransform(p, RING_Z.t, RING_Z.v);
   const tagRotX = useTransform(p, RING_TILT.t, RING_TILT.v);
+  const tagRotY = useTransform(p, RING_YAW.t, RING_YAW.v);
   const camScale = useTransform(p, CAM.t, CAM.v);
 
   // bóng đổ trên đáy hộp khi vòng còn nằm sát; khi bay lên, bóng mờ và lệch xa
@@ -368,7 +373,7 @@ export default function ScrollUnboxingHero() {
             {/* Vòng 3D: nằm trong lõm, bay theo quỹ đạo cong */}
             <motion.div
               className="absolute left-0 right-0 mx-auto aspect-square"
-              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, z: tagZ, rotateX: tagRotX, opacity: tagOpacity }}
+              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, z: tagZ, rotateX: tagRotX, rotateY: tagRotY, opacity: tagOpacity }}
             >
               {/* Quầng sáng sau vòng: đi cùng vòng, sáng dần khi vòng tiến gần camera */}
               <motion.div
