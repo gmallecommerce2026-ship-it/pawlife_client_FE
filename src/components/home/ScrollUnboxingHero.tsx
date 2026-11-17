@@ -2,20 +2,26 @@
 /* eslint-disable @next/next/no-img-element */
 // src/components/home/ScrollUnboxingHero.tsx
 // Hero cuộn theo tiến độ, dựng bằng code (không dùng video).
-// Hộp mở ra → tag bay lên giữa màn → tag bay sang trái/phải đan xen với chữ,
-// lật mặt trước/sau khi đổi bên, chữ hiện theo từng từ.
+//  1. Nắp hộp nảy khi mở, hộp trượt xuống và lệch sang trái khi rời màn
+//  2. Tag nhô lên, bay cong ra giữa màn
+//  3. Tag bay cong sang bên đối diện chữ (đan xen trái/phải), vòng qua đỉnh khi đổi bên
+//  4. Lật có dải sáng trượt qua mặt tag; mặt sau là thẻ Pet ID
+//  5. Chữ hiện bằng mặt nạ kéo từ phía tag đi ra, mỗi bên một hướng
+//  6. Nghiêng theo chuột (máy tính) và theo tốc độ cuộn; chỉ báo tiến độ có số chương
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
 import {
   AnimatePresence,
   motion,
   useMotionTemplate,
+  useMotionValue,
   useMotionValueEvent,
   useScroll,
   useSpring,
   useTransform,
+  useVelocity,
 } from 'framer-motion';
 
 /* ------------------------------------------------------------------ */
@@ -25,7 +31,6 @@ export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg'; // logo tạm
 const TAG_SRC = '/images/qr-tag-only.webp';
 const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
 const FEATURES = [
@@ -34,16 +39,17 @@ const FEATURES = [
   { icon: ShieldCheck, title: 'An toàn', text: 'Liên lạc với chủ khi cần thiết' },
 ];
 
+type Side = 'center' | 'left' | 'right';
 type Chapter = {
   range: [number, number];
-  side: 'center' | 'left' | 'right';
+  side: Side;
   eyebrow: string;
   lines?: { text: string; accent?: boolean }[];
   features?: boolean;
   cta?: boolean;
 };
 
-// Đan xen trái / phải: chữ bên nào thì tag bay sang bên kia
+// Đan xen trái/phải: chữ bên nào thì tag ở bên kia
 const CHAPTERS: Chapter[] = [
   {
     range: [0, 0.14],
@@ -67,38 +73,91 @@ const CHAPTERS: Chapter[] = [
   },
 ];
 
-const POS: Record<Chapter['side'], string> = {
-  center: 'bottom-10 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
+const POS: Record<Side, string> = {
+  center: 'bottom-14 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
   left: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-12 lg:right-auto lg:top-1/2 lg:-translate-y-1/2 lg:w-[300px]',
   right: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-auto lg:right-12 lg:top-1/2 lg:-translate-y-1/2 lg:w-[300px]',
 };
 
-/* Chữ hiện theo từng từ: mờ + trượt lên + rõ dần */
-function RevealLine({ text, accent, delay, center }: { text: string; accent?: boolean; delay: number; center: boolean }) {
+/* ------------------------------------------------------------------ */
+/*  QUỸ ĐẠO CỦA TAG                                                    */
+/*  Vị trí tâm tag tính theo % màn cảnh (c); x theo % chiều rộng tag.  */
+/*  Tag cao 46% màn cảnh nên đổi c sang y: (c - 73) / 0.46              */
+/* ------------------------------------------------------------------ */
+const toY = (c: number) => (c - 73) / 0.46;
+const SIDE_X = 62;          // tag lệch sang trái/phải bao nhiêu (% chiều rộng tag)
+const SIDE_C = 36;          // tâm dọc khi tag đứng bên
+const P_INSIDE = { x: 0, y: toY(40) };   // trong hộp
+const P_LIFT = { x: 0, y: toY(24) };     // nhô lên khỏi hộp
+const P_RIGHT = { x: SIDE_X, y: toY(SIDE_C) };
+const P_LEFT = { x: -SIDE_X, y: toY(SIDE_C) };
+const P_CTA = { x: 0, y: toY(46) };      // đứng giữa ở chương cuối
+
+type Pt = { t: number; x: number; y: number };
+/** Đường cong từ a đến b trong khoảng tiến độ [t0, t1]; lift là độ vồng lên (đơn vị y) */
+function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number; y: number }, lift: number, steps = 12): Pt[] {
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const u = i / steps;
+    const e = u * u * (3 - 2 * u); // ease in-out
+    return {
+      t: t0 + (t1 - t0) * u,
+      x: a.x + (b.x - a.x) * e,
+      y: a.y + (b.y - a.y) * e - lift * Math.sin(Math.PI * u),
+    };
+  });
+}
+
+const PATH: Pt[] = [
+  { t: 0, ...P_INSIDE },
+  { t: 0.12, ...P_INSIDE },
+  ...arc(0.12, 0.38, P_INSIDE, P_LIFT, 0, 8).slice(1),      // nhô lên khỏi hộp
+  ...arc(0.38, 0.5, P_LIFT, P_RIGHT, 16).slice(1),           // vòng sang phải
+  ...arc(0.5, 0.62, P_RIGHT, P_LEFT, 34).slice(1),           // vòng qua đỉnh sang trái
+  { t: 0.8, ...P_LEFT },                                     // giữ bên trái
+  ...arc(0.8, 0.9, P_LEFT, P_CTA, 22).slice(1),              // về giữa
+  { t: 1, ...P_CTA },
+];
+const PATH_T = PATH.map((q) => q.t);
+const PATH_X = PATH.map((q) => `${q.x}%`);
+const PATH_Y = PATH.map((q) => `${q.y}%`);
+
+/* ------------------------------------------------------------------ */
+/*  CHỮ: mặt nạ kéo từ phía tag đi ra                                 */
+/* ------------------------------------------------------------------ */
+const MASK_FROM: Record<Side, string> = {
+  left: 'inset(0% 100% 0% 0%)',   // chữ bên trái lộ ra từ trái sang phải
+  right: 'inset(0% 0% 0% 100%)',  // chữ bên phải lộ ra từ phải sang trái
+  center: 'inset(0% 0% 100% 0%)', // chữ giữa lộ ra từ trên xuống
+};
+const MASK_TO = 'inset(0% 0% 0% 0%)';
+
+function RevealLine({ text, accent, side, delay }: { text: string; accent?: boolean; side: Side; delay: number }) {
   const words = text.split(' ');
   return (
-    <p
-      className={`text-[26px] font-bold leading-tight sm:text-[34px] ${center ? 'text-center' : ''}`}
+    <motion.p
+      className={`text-[26px] font-bold leading-tight sm:text-[34px] ${side === 'center' ? 'text-center' : ''}`}
       style={{ color: accent ? COLOR.brand : COLOR.ink }}
+      initial={{ clipPath: MASK_FROM[side] }}
+      animate={{ clipPath: MASK_TO }}
+      transition={{ duration: 0.8, delay, ease: EASE_OUT }}
     >
       {words.map((w, i) => (
         <motion.span
           key={`${w}-${i}`}
           className="mr-[0.25em] inline-block"
-          initial={{ opacity: 0, y: 24, filter: 'blur(8px)' }}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-          transition={{ duration: 0.55, delay: delay + i * 0.07, ease: EASE_OUT }}
+          initial={{ opacity: 0, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          transition={{ duration: 0.5, delay: delay + 0.25 + i * 0.05 }}
         >
           {w}
         </motion.span>
       ))}
-    </p>
+    </motion.p>
   );
 }
 
-function ChapterBody({ c }: { c: Chapter }) {
-  const center = c.side === 'center';
-  const fromX = c.side === 'right' ? 28 : -28; // chữ bên phải trượt từ phải vào, và ngược lại
+function ChapterBody({ c, index }: { c: Chapter; index: number }) {
+  const fromX = c.side === 'right' ? 28 : -28;
   return (
     <>
       <motion.p
@@ -108,11 +167,11 @@ function ChapterBody({ c }: { c: Chapter }) {
         animate={{ opacity: 1, letterSpacing: '0.18em' }}
         transition={{ duration: 0.7, ease: EASE_OUT }}
       >
-        {c.eyebrow}
+        {String(index + 1).padStart(2, '0')} · {c.eyebrow}
       </motion.p>
 
       {c.lines?.map((l, i) => (
-        <RevealLine key={l.text} text={l.text} accent={l.accent} center={center} delay={0.1 + i * 0.25} />
+        <RevealLine key={l.text} text={l.text} accent={l.accent} side={c.side} delay={0.1 + i * 0.3} />
       ))}
 
       {c.features && (
@@ -123,7 +182,7 @@ function ChapterBody({ c }: { c: Chapter }) {
               className="flex items-start gap-3"
               initial={{ opacity: 0, x: fromX }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.15 + i * 0.14, ease: EASE_OUT }}
+              transition={{ duration: 0.6, delay: 0.2 + i * 0.15, ease: EASE_OUT }}
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: '#FFF1E4', color: COLOR.brand }}>
                 <Icon size={18} />
@@ -152,6 +211,7 @@ function ChapterBody({ c }: { c: Chapter }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
 export default function ScrollUnboxingHero() {
   const containerRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
@@ -165,93 +225,141 @@ export default function ScrollUnboxingHero() {
     setActive((prev) => (prev === idx ? prev : idx));
   });
 
-  /* Nắp hộp mở ra phía sau */
-  const lidRot = useTransform(p, [0.1, 0.36], [0, -110]);
+  /* --- 1. Hộp --- */
+  // Nắp nảy: mở quá một chút rồi về lại
+  const lidRot = useTransform(p, [0.1, 0.19, 0.26, 0.36], [0, -125, -96, -112]);
+  // Hộp rời màn: trượt xuống và lệch sang trái, mờ dần
+  const boxOpacity = useTransform(p, [0.44, 0.6], [1, 0]);
+  const boxY = useTransform(p, [0.44, 0.6], ['0%', '40%']);
+  const boxX = useTransform(p, [0.44, 0.6], ['0%', '-30%']);
+  const shadowOpacity = useTransform(p, [0.44, 0.6], [0.3, 0]);
 
-  /* Tag: trong hộp → nhô lên → bay giữa màn → bay trái/phải đan xen */
+  /* --- 2 & 3. Tag: quỹ đạo --- */
   const tagOpacity = useTransform(p, [0.08, 0.16], [0, 1]);
-  const tagTop = useTransform(p, [0.12, 0.38, 0.5, 0.8], ['40%', '24%', '40%', '46%']);
-  const tagScale = useTransform(p, [0.12, 0.38, 0.5, 0.8], [0.94, 1, 1.2, 1.2]);
-  const tagX = useTransform(p, [0.44, 0.5, 0.58, 0.76, 0.84], ['0%', '0%', '-62%', '-62%', '0%']);
-  // Lật mặt: lật khi đổi bên (mặt sau là thẻ Pet ID), rồi lật về mặt trước ở cuối
-  const tagFlip = useTransform(p, [0.44, 0.5, 0.6, 0.76, 0.84], [0, 0, 180, 180, 360]);
-  const tagTilt = useTransform(p, [0.5, 0.6, 0.72, 0.84], [0, 10, -6, 0]);
-  // Phần tag nằm dưới miệng hộp bị cắt, nên tag trông như được lấy ra từ trong hộp
+  const tagX = useTransform(p, PATH_T, PATH_X);
+  const tagY = useTransform(p, PATH_T, PATH_Y);
+  const tagScale = useTransform(p, [0.12, 0.38, 0.5, 0.62, 0.9, 1], [0.94, 1.02, 1.05, 1.05, 1.1, 1.1]);
+  // Phần tag nằm dưới miệng hộp bị cắt khi còn trong hộp
   const clipBottom = useTransform(p, [0.12, 0.3], [41, 0]);
   const tagClip = useMotionTemplate`inset(0 0 ${clipBottom}% 0)`;
 
-  /* Hộp hạ xuống và mờ đi khi tag đã ra giữa màn */
-  const boxOpacity = useTransform(p, [0.44, 0.6], [1, 0]);
-  const boxY = useTransform(p, [0.44, 0.6], ['0%', '40%']);
-  const shadowOpacity = useTransform(p, [0.44, 0.6], [0.3, 0]);
+  /* --- 4. Lật + dải sáng --- */
+  const tagFlip = useTransform(p, [0.38, 0.5, 0.62, 0.8, 0.9, 1], [0, 180, 360, 360, 540, 720]);
+  const tagTilt = useTransform(p, [0.38, 0.46, 0.56, 0.62, 0.8, 0.9, 1], [0, 10, -8, 0, 0, 8, 0]);
+  const sheenPos = useTransform(tagFlip, [0, 180, 360, 540, 720], ['150% 0', '-50% 0', '150% 0', '-50% 0', '150% 0']);
+
+  /* --- 6. Nghiêng theo chuột và tốc độ cuộn --- */
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const sx = useSpring(mx, { stiffness: 70, damping: 20 });
+  const sy = useSpring(my, { stiffness: 70, damping: 20 });
+  const scrollVel = useSpring(useVelocity(p), { stiffness: 80, damping: 30 });
+  const sceneRotY = useTransform([sx, scrollVel], ([a, v]: number[]) => a * 8 + Math.max(-3, Math.min(3, v)) * 3);
+  const sceneRotX = useTransform([sy, scrollVel], ([b, v]: number[]) => -b * 6 + Math.max(-3, Math.min(3, v)) * -2);
+
+  const onPointerMove = (e: ReactMouseEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    mx.set(((e.clientX - r.left) / r.width) * 2 - 1);
+    my.set(((e.clientY - r.top) / r.height) * 2 - 1);
+  };
 
   const chapter = CHAPTERS[active];
 
   return (
-    <section ref={containerRef} className="relative h-[330svh] w-full" style={{ backgroundColor: COLOR.cream }} aria-label="Giới thiệu QR Tag">
+    <section
+      ref={containerRef}
+      onMouseMove={onPointerMove}
+      className="relative h-[330svh] w-full"
+      style={{ backgroundColor: COLOR.cream }}
+      aria-label="Giới thiệu QR Tag"
+    >
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
         <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: p, backgroundColor: COLOR.brand }} />
 
-        {/* Cảnh: hộp + tag */}
-        <div className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0" style={{ aspectRatio: '1 / 1', perspective: 1000 }}>
-          <motion.div
-            className="absolute bottom-[2%] left-[12%] right-[12%] h-[8%] rounded-full bg-black blur-xl"
-            style={{ opacity: shadowOpacity }}
-          />
-
-          {/* Hộp */}
-          <motion.div className="absolute inset-0" style={{ opacity: boxOpacity, y: boxY }}>
-            <div className="absolute left-[10%] right-[10%] top-[24%] h-[26%] rounded-md bg-white shadow-inner" />
-            <div
-              className="absolute left-[6%] right-[6%] top-[26%] bottom-[4%] rounded-[18px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.35)]"
-              style={{ background: `linear-gradient(160deg, #F5AE72 0%, ${COLOR.brand} 45%, ${COLOR.brandDk} 100%)` }}
-            >
-              <div className="absolute left-1/2 top-[38%] flex h-[26%] w-[44%] -translate-x-1/2 items-center justify-center rounded-full bg-white/95 shadow">
-                <img src={BRAND_LOGO} alt="" className="h-[60%] w-auto" />
-              </div>
-            </div>
-            <motion.div
-              className="absolute left-[4%] right-[4%] top-[22%] h-[22%] rounded-[16px] shadow-md"
-              style={{ rotateX: lidRot, transformOrigin: 'top center', background: `linear-gradient(180deg, #F7B77F 0%, ${COLOR.brand} 100%)` }}
+        {/* Chỉ báo tiến độ: ngang trên điện thoại, dọc bên phải trên máy tính */}
+        <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2 lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:translate-x-0 lg:-translate-y-1/2 lg:flex-col">
+          {CHAPTERS.map((c, i) => (
+            <span
+              key={c.eyebrow}
+              className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? 'w-6' : 'w-1.5'}`}
+              style={{ backgroundColor: i === active ? COLOR.brand : '#D1D5DB' }}
             />
-          </motion.div>
+          ))}
+        </div>
 
-          {/* Tag: hai mặt, lật bằng rotateY. clip-path nằm ở lớp con để không làm phẳng 3D của lớp lật */}
-          <motion.div
-            className="absolute left-0 right-0 mx-auto w-[46%]"
-            style={{
-              top: tagTop,
-              y: '-50%',
-              x: tagX,
-              scale: tagScale,
-              rotateY: tagFlip,
-              rotateX: tagTilt,
-              opacity: tagOpacity,
-              transformStyle: 'preserve-3d',
-            }}
-          >
-            <motion.div style={{ clipPath: tagClip, backfaceVisibility: 'hidden' }}>
-              <img
-                src={TAG_SRC}
-                alt="QR Tag"
-                className="w-full select-none"
-                style={{ filter: 'drop-shadow(0 18px 24px rgba(0,0,0,0.18))' }}
+        {/* Mặt nhìn 3D: nghiêng theo chuột/cuộn */}
+        <div className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0" style={{ aspectRatio: '1 / 1', perspective: 1000 }}>
+          <motion.div className="absolute inset-0" style={{ rotateX: sceneRotX, rotateY: sceneRotY, transformStyle: 'preserve-3d' }}>
+            {/* Bóng dưới hộp */}
+            <motion.div
+              className="absolute bottom-[2%] left-[12%] right-[12%] h-[8%] rounded-full bg-black blur-xl"
+              style={{ opacity: shadowOpacity }}
+            />
+
+            {/* Hộp */}
+            <motion.div className="absolute inset-0" style={{ opacity: boxOpacity, y: boxY, x: boxX }}>
+              <div className="absolute left-[10%] right-[10%] top-[24%] h-[26%] rounded-md bg-white shadow-inner" />
+              <div
+                className="absolute left-[6%] right-[6%] top-[26%] bottom-[4%] rounded-[18px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.35)]"
+                style={{ background: `linear-gradient(160deg, #F5AE72 0%, ${COLOR.brand} 45%, ${COLOR.brandDk} 100%)` }}
+              >
+                <div className="absolute left-1/2 top-[38%] flex h-[26%] w-[44%] -translate-x-1/2 items-center justify-center rounded-full bg-white/95 shadow">
+                  <img src={BRAND_LOGO} alt="" className="h-[60%] w-auto" />
+                </div>
+              </div>
+              <motion.div
+                className="absolute left-[4%] right-[4%] top-[22%] h-[22%] rounded-[16px] shadow-md"
+                style={{ rotateX: lidRot, transformOrigin: 'top center', background: `linear-gradient(180deg, #F7B77F 0%, ${COLOR.brand} 100%)` }}
               />
             </motion.div>
-            {/* Mặt sau */}
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-full text-center shadow-[0_18px_24px_rgba(0,0,0,0.18)]"
+
+            {/* Tag: hai mặt, quỹ đạo cong, lật bằng rotateY */}
+            <motion.div
+              className="absolute left-0 right-0 mx-auto w-[46%]"
               style={{
-                transform: 'rotateY(180deg)',
-                backfaceVisibility: 'hidden',
-                background: 'radial-gradient(circle at 30% 25%, #FFFFFF, #FFE7D0 70%)',
+                top: '50%',
+                x: tagX,
+                y: tagY,
+                scale: tagScale,
+                rotateY: tagFlip,
+                rotateX: tagTilt,
+                opacity: tagOpacity,
+                transformStyle: 'preserve-3d',
               }}
             >
-              <img src={BRAND_LOGO} alt="" className="w-[38%]" />
-              <p className="text-[13px] font-bold" style={{ color: COLOR.ink }}>Pet ID</p>
-              <p className="w-[70%] text-[10px] leading-tight" style={{ color: COLOR.muted }}>Một danh tính riêng cho bé</p>
-            </div>
+              <motion.div style={{ clipPath: tagClip, backfaceVisibility: 'hidden' }}>
+                <img src={TAG_SRC} alt="QR Tag" className="w-full select-none" style={{ filter: 'drop-shadow(0 18px 24px rgba(0,0,0,0.18))' }} />
+              </motion.div>
+
+              {/* Mặt sau */}
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-full text-center"
+                style={{
+                  transform: 'rotateY(180deg)',
+                  backfaceVisibility: 'hidden',
+                  background: 'radial-gradient(circle at 30% 25%, #FFFFFF, #FFE7D0 70%)',
+                  boxShadow: '0 18px 24px rgba(0,0,0,0.18)',
+                }}
+              >
+                <img src={BRAND_LOGO} alt="" className="w-[38%]" />
+                <p className="text-[13px] font-bold" style={{ color: COLOR.ink }}>Pet ID</p>
+                <p className="w-[70%] text-[10px] leading-tight" style={{ color: COLOR.muted }}>Một danh tính riêng cho bé</p>
+              </div>
+
+              {/* Dải sáng trượt qua khi lật */}
+              <motion.div
+                className="pointer-events-none absolute inset-0 rounded-full"
+                style={{
+                  transform: 'translateZ(1px)',
+                  backgroundImage: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.8) 50%, transparent 65%)',
+                  backgroundSize: '250% 100%',
+                  backgroundPosition: sheenPos,
+                  backgroundRepeat: 'no-repeat',
+                  mixBlendMode: 'soft-light',
+                }}
+              />
+            </motion.div>
           </motion.div>
         </div>
 
@@ -265,7 +373,7 @@ export default function ScrollUnboxingHero() {
             transition={{ duration: 0.35 }}
             className={`absolute ${POS[chapter.side]}`}
           >
-            <ChapterBody c={chapter} />
+            <ChapterBody c={chapter} index={active} />
           </motion.div>
         </AnimatePresence>
       </div>
