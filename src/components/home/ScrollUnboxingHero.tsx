@@ -17,12 +17,6 @@ const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
 const DESK_BASE = '#CDB39A';
-const DESK_BG = [
-  'radial-gradient(ellipse 70% 55% at 50% 38%, rgba(255,246,236,0.55), rgba(255,246,236,0) 70%)',
-  'radial-gradient(ellipse 120% 100% at 50% 50%, rgba(0,0,0,0) 55%, rgba(60,36,20,0.42) 100%)',
-  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.006 0.32' numOctaves='5' seed='11'/><feColorMatrix values='0 0 0 0 0.38  0 0 0 0 0.25  0 0 0 0 0.14  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
-].join(', ');
-
 const FEATURES = [
   { icon: History, title: 'PawHistory', text: 'Lưu trữ hồ sơ sức khoẻ' },
   { icon: Fingerprint, title: 'Pet ID', text: 'Một danh tính riêng cho bé' },
@@ -194,8 +188,6 @@ export default function ScrollUnboxingHero() {
   return (
     <section ref={containerRef} className="relative h-[380svh] w-full" style={{ backgroundColor: DESK_BASE }} aria-label="Giới thiệu QR Tag">
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
-        {/* Nền mặt bàn */}
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: DESK_BG }} />
 
         {/* Cảnh 3D duy nhất: hộp + vòng */}
         <div className="pointer-events-none absolute inset-0">

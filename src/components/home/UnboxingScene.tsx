@@ -53,6 +53,16 @@ function evalCurve(keys: Key[], t: number): number {
   );
 }
 
+/* Tai ghim: tấm bìa có mũi nhọn ở đáy, dựng trong mặt YZ, dày 2 mm */
+const earShape = new THREE.Shape();
+earShape.moveTo(0, 0);
+earShape.lineTo(EAR_W, 0);
+earShape.lineTo(EAR_W, -H * 0.8);
+earShape.lineTo(EAR_W / 2, -H);
+earShape.lineTo(0, -H * 0.8);
+earShape.closePath();
+const earGeo = new THREE.ExtrudeGeometry(earShape, { depth: BOARD, bevelEnabled: false });
+
 /* Quỹ đạo vòng: X nhân với hệ số theo khung hình (màn hẹp thì thu lại) */
 const RING_X: Key[] = [[0, 0], [0.12, 0], [0.26, 0], [0.36, -1.2], [0.52, -1.4], [0.64, -0.2], [0.72, 1.2], [0.8, 1.4], [0.9, 0], [1, 0]];
 const RING_Y: Key[] = [[0, RING_REST_Y], [0.12, RING_REST_Y], [0.26, 0.6], [0.36, 1.6], [0.52, 1.0], [0.64, 1.5], [0.72, 1.0], [0.8, 1.2], [0.9, 2.0], [1, 2.0]];
@@ -94,6 +104,83 @@ function makeLidTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/* Mặt bàn gỗ: nền nâu sáng, vân dài uốn nhẹ theo chiều ngang, vài đốm tối */
+function makeWoodTexture(): THREE.CanvasTexture {
+  const S = 2048;
+  const canvas = document.createElement('canvas');
+  canvas.width = S;
+  canvas.height = S;
+  const g = canvas.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, S);
+  grad.addColorStop(0, '#C7A987');
+  grad.addColorStop(0.5, '#BE9C79');
+  grad.addColorStop(1, '#C4A482');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, S, S);
+  let seed = 17;
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  // vân dọc theo trục X: nhiều đường mảnh, độ đậm khác nhau
+  for (let k = 0; k < 900; k++) {
+    const y0 = rnd() * S;
+    const amp = 2 + rnd() * 10;
+    const ph = rnd() * Math.PI * 2;
+    const dark = rnd() < 0.6;
+    g.strokeStyle = dark ? `rgba(92,62,38,${0.05 + rnd() * 0.12})` : `rgba(240,220,190,${0.04 + rnd() * 0.08})`;
+    g.lineWidth = 0.6 + rnd() * 2.2;
+    g.beginPath();
+    for (let x = 0; x <= S; x += 32) {
+      const y = y0 + Math.sin(x / 380 + ph) * amp + Math.sin(x / 90 + ph * 2) * (amp * 0.2);
+      if (x === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  // vài đốm sẫm nhỏ như vết gỗ tự nhiên
+  for (let k = 0; k < 40; k++) {
+    g.fillStyle = `rgba(80,52,30,${0.04 + rnd() * 0.05})`;
+    g.beginPath();
+    g.ellipse(rnd() * S, rnd() * S, 30 + rnd() * 90, 4 + rnd() * 8, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2.2, 2.2);
+  return tex;
+}
+
+/* Đồ trang trí nhỏ đặt ở rìa bàn: cốc gốm và viên đá, không chắn hộp */
+function DeskProps() {
+  const cupGeo = useMemo(() => {
+    const pts: THREE.Vector2[] = [];
+    const R = 0.42, Hh = 0.8, wall = 0.04;
+    pts.push(new THREE.Vector2(0, 0));
+    pts.push(new THREE.Vector2(R - 0.08, 0));
+    pts.push(new THREE.Vector2(R, Hh));
+    pts.push(new THREE.Vector2(R - wall, Hh));
+    pts.push(new THREE.Vector2(R - wall - 0.04, 0.06));
+    pts.push(new THREE.Vector2(0, 0.06));
+    return new THREE.LatheGeometry(pts, 64);
+  }, []);
+  const cupMat = useMemo(
+    () => new THREE.MeshPhysicalMaterial({ color: '#E8E0D3', roughness: 0.55, clearcoat: 0.25, clearcoatRoughness: 0.35, side: THREE.DoubleSide }),
+    [],
+  );
+  const stoneMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#8E8377', roughness: 0.95 }), []);
+  return (
+    <>
+      <mesh geometry={cupGeo} material={cupMat} position={[4.7, 0, -2.6]} castShadow receiveShadow />
+      <mesh material={stoneMat} position={[-4.9, 0.1, 2.8]} scale={[1, 0.5, 0.8]} castShadow receiveShadow>
+        <icosahedronGeometry args={[0.32, 2]} />
+      </mesh>
+    </>
+  );
+}
+
 function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const { gl, scene } = useThree();
   const smooth = useRef(0);
@@ -106,18 +193,24 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     const pmrem = new THREE.PMREMGenerator(gl);
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = env;
+    scene.fog = new THREE.Fog('#C7AD92', 16, 48);
     return () => {
       scene.environment = null;
+      scene.fog = null;
       env.dispose();
       pmrem.dispose();
     };
   }, [gl, scene]);
 
+  const woodTex = useMemo(() => makeWoodTexture(), []);
+  const woodMat = useMemo(() => new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.72 }), [woodTex]);
+
   /* Vật liệu hộp */
   const lidTex = useMemo(() => makeLidTexture(), []);
-  const orangeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: ORANGE, roughness: 0.65, transparent: true }), []);
-  const liningMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#FFFDF9', roughness: 0.8, transparent: true }), []);
-  const lidTopMat = useMemo(() => new THREE.MeshStandardMaterial({ map: lidTex, roughness: 0.65, transparent: true }), [lidTex]);
+  const cardGrain = useMemo(() => makeGrainTexture(), []);
+  const orangeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: ORANGE, roughness: 0.88, bumpMap: cardGrain, bumpScale: 0.02, transparent: true }), [cardGrain]);
+  const liningMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#F5EEE4', roughness: 0.92, bumpMap: cardGrain, bumpScale: 0.015, transparent: true }), [cardGrain]);
+  const lidTopMat = useMemo(() => new THREE.MeshStandardMaterial({ map: lidTex, roughness: 0.85, bumpMap: cardGrain, bumpScale: 0.015, transparent: true }), [lidTex, cardGrain]);
   const recessMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#E6D9CA', roughness: 0.9, transparent: true }), []);
   const creaseMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A3E12', transparent: true, opacity: 0.35 }), []);
   const windowMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.2, transparent: true, opacity: 0.6 }), []);
@@ -168,7 +261,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     frontTex.anisotropy = maxAniso;
     backTex.anisotropy = maxAniso;
   }, [frontTex, backTex, maxAniso]);
-  const enamel = { roughness: 0.38, roughnessMap: grain, bumpMap: grain, bumpScale: 0.4, clearcoat: 0.7, clearcoatRoughness: 0.06, ior: 1.5, specularIntensity: 0.6, envMapIntensity: 0.8 };
+  const enamel = { roughness: 0.5, roughnessMap: grain, bumpMap: grain, bumpScale: 0.7, clearcoat: 0.22, clearcoatRoughness: 0.32, ior: 1.5, specularIntensity: 0.45, envMapIntensity: 0.65 };
   const ringBody = useMemo(() => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', ...enamel, side: THREE.DoubleSide }), [grain]);
   const ringFront = useMemo(() => new THREE.MeshPhysicalMaterial({ map: frontTex, ...enamel, side: THREE.DoubleSide }), [frontTex, grain]);
   const ringBack = useMemo(() => new THREE.MeshPhysicalMaterial({ map: backTex, ...enamel, side: THREE.DoubleSide }), [backTex, grain]);
@@ -251,11 +344,9 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <mesh position={[0, -0.002, B]} rotation={[Math.PI / 2, 0, 0]} material={windowMat}>
             <circleGeometry args={[0.2, 32, Math.PI, Math.PI]} />
           </mesh>
-          {/* Hai tai ghim: nối vào đầu cạnh gấp trước, hạ xuống theo chiều cao hộp */}
+          {/* Hai tai ghim: nối vào mép ngoài nắp, gập xuống ngoài thành hộp, mũi nhọn ở đáy */}
           {[-1, 1].map((sg) => (
-            <mesh key={sg} position={[sg * (B / 2 - IN + EAR_W / 2), -H / 2, B - IN - BOARD / 2]} castShadow material={orangeMat}>
-              <boxGeometry args={[EAR_W, H, BOARD]} />
-            </mesh>
+            <mesh key={sg} position={[sg * (B / 2), 0, sg > 0 ? B - IN : B - IN - EAR_W]} rotation={[0, sg * Math.PI / 2, 0]} castShadow material={orangeMat} geometry={earGeo} />
           ))}
         </group>
       </group>
@@ -265,11 +356,11 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
         <mesh geometry={ringGeo} material={[ringFront, ringBody, ringBack]} castShadow />
       </group>
 
-      {/* Bóng đổ nhẹ trên nền */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BOARD - 0.002, 0]} receiveShadow>
-        <planeGeometry args={[30, 30]} />
-        <shadowMaterial opacity={0.18} />
+      {/* Mặt bàn: cùng hệ toạ độ với hộp và vòng, nhận bóng đổ */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BOARD - 0.002, 0]} receiveShadow material={woodMat}>
+        <planeGeometry args={[80, 80]} />
       </mesh>
+      <DeskProps />
     </>
   );
 }
