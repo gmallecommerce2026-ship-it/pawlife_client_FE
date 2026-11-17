@@ -85,8 +85,10 @@ const RING_Y: Key[] = [[0, RING_REST_Y], [0.12, RING_REST_Y], [0.26, 0.6], [0.36
 const RING_Z: Key[] = [[0, 0], [0.12, 0], [0.26, 0.2], [0.36, 1.4], [0.52, 2.2], [0.64, 1.6], [0.72, 2.4], [0.8, 2.0], [0.9, 1.0], [1, 1.0]];
 // Nghiêng: từ nằm phẳng (-π/2) đến mặt hướng camera
 const RING_RX: Key[] = [[0, -Math.PI / 2], [0.26, -0.9], [0.36, -0.3], [0.5, -0.3], [1, -0.3]];
-// Nắp: 0 → 100°
-const LID: Key[] = [[0, 0], [0.03, 0], [0.2, 1.92], [1, 1.92]];
+// Nắp (theo video mẫu): 1) nhấc nhẹ ~10° để gỡ lưỡi gài, 2) lật nhanh lên, lố tới ~112° rồi hồi về ~109°
+const LID: Key[] = [[0, 0], [0.03, 0], [0.07, 0.14], [0.1, 0.18], [0.21, 1.84], [0.28, 1.95], [0.38, 1.9], [1, 1.9]];
+// Nắp trượt ra trước (đơn vị thế giới) khi gỡ lưỡi gài khỏi khe, rồi về chỗ cũ khi đã lật lên
+const LID_PULL: Key[] = [[0, 0], [0.03, 0], [0.07, 0.07], [0.12, 0.07], [0.2, 0], [1, 0]];
 // Camera: lùi nhẹ rồi tiến về vòng ở giữa hành trình (dolly)
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
@@ -118,17 +120,37 @@ function makeLidTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-const GROUND_Y = -BOARD;
+/* Các mức độ cao tách biệt để không z-fighting (đơn vị thế giới):
+   đáy hộp  GROUND_Y            = -0.100
+   gốc cỏ   SOIL_Y + 0.008      = -0.112
+   bóng     SOIL_Y + 0.006      = -0.114
+   đất nền  SOIL_Y              = -0.120 */
+const GROUND_Y = -BOARD;               // đáy hộp
+const SOIL_Y = GROUND_Y - 0.02;        // đất nền thấp hơn đáy hộp 0.02
+const SHADOW_Y = SOIL_Y + 0.006;       // bóng tiếp xúc nằm trên đất 0.006
+const GRASS_ROOT_Y = SOIL_Y + 0.008;   // gốc cỏ cắm nhẹ vào đất, cách đáy hộp 0.012
 const GRASS_HALF = 9;
+
+/* Tinh chỉnh cỏ quanh hộp */
+const GRASS_COUNT = 12000;   // tổng số lá
+const GRASS_PAD = 0.35;      // vùng đệm ngoài thành hộp: tuyệt đối không mọc lá
+const GRASS_THIN = 1.2;      // bề rộng dải thưa ngay ngoài vùng đệm
+const GRASS_THIN_KEEP = 0.7; // tỉ lệ giữ lại lá trong dải thưa
+const GRASS_MIN_H = 0.2;     // hệ số chiều cao sát hộp (0.2 → 1.0)
+const GRASS_RAMP = 1.6;      // khoảng cách (ngoài footprint) để cỏ cao lại đủ
+const GRASS_CAP0 = 0.05;     // trần chiều cao ở sát hộp (phía camera)
+const GRASS_CAPK = 0.55;     // độ dốc trần theo khoảng cách; phải < dốc tia nhìn tới chân hộp (~0.66)
+const GRASS_BOX = B / 2 + 0.03; // nửa cạnh footprint dùng trong shader
 
 /* Lá cỏ gộp thành một lưới: mỗi lá là dải 4 đoạn, cong nhẹ, tông đậm ở gốc, sáng ở ngọn */
 function makeGrassGeometry(): THREE.BufferGeometry {
-  const N = 12000;
+  const N = GRASS_COUNT;
   const L = 4;
   const pos: number[] = [];
   const col: number[] = [];
   const aH: number[] = [];
   const aBase: number[] = [];
+  const aLen: number[] = [];
   const aYaw: number[] = [];
   const aLean: number[] = [];
   const nrm: number[] = [];
@@ -138,9 +160,21 @@ function makeGrassGeometry(): THREE.BufferGeometry {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  for (let b = 0; b < N; b++) {
+  const EX = B / 2 + GRASS_PAD; // nửa cạnh vùng cấm (footprint + đệm)
+  let placed = 0;
+  let tries = 0;
+  while (placed < N && tries < N * 20) {
+    tries++;
     const bx = (rnd() * 2 - 1) * GRASS_HALF;
     const bz = (rnd() * 2 - 1) * GRASS_HALF;
+    // Loại trừ: không có lá nào mọc dưới đáy hộp hay trong dải đệm quanh hộp
+    const ex = Math.abs(bx) - EX;
+    const ez = Math.abs(bz) - EX;
+    if (ex < 0 && ez < 0) continue;
+    // Dải thưa ngay ngoài vùng đệm: giảm mật độ để không thành vòng cỏ dày sát hộp
+    const dOut = Math.hypot(Math.max(ex, 0), Math.max(ez, 0));
+    if (dOut < GRASS_THIN && rnd() > GRASS_THIN_KEEP) continue;
+    placed++;
     const yaw = rnd() * Math.PI * 2;
     const H = 1.3 + rnd() * 1.3;
     const W = 0.07 + rnd() * 0.03;
@@ -158,7 +192,8 @@ function makeGrassGeometry(): THREE.BufferGeometry {
         pos.push(x, y, z);
         col.push(0.14 * shade, (0.26 + 0.1 * t) * shade, 0.07 * shade);
         aH.push(t);
-        aBase.push(bx, GROUND_Y, bz);
+        aBase.push(bx, GRASS_ROOT_Y, bz);
+        aLen.push(H);
         aYaw.push(yaw);
         aLean.push(lean);
         nrm.push(0, 1, 0);
@@ -175,52 +210,85 @@ function makeGrassGeometry(): THREE.BufferGeometry {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
   g.setAttribute('aH', new THREE.Float32BufferAttribute(aH, 1));
   g.setAttribute('aBase', new THREE.Float32BufferAttribute(aBase, 3));
+  g.setAttribute('aLen', new THREE.Float32BufferAttribute(aLen, 1));
   g.setAttribute('aYaw', new THREE.Float32BufferAttribute(aYaw, 1));
   g.setAttribute('aLean', new THREE.Float32BufferAttribute(aLean, 1));
   g.setIndex(idx);
   return g;
 }
 
-/* Cánh đồng cỏ: gió đung đưa; dưới đáy hộp cỏ bị đè dẹt và tủa ra hai bên */
+/* Cánh đồng cỏ: gió đung đưa; cỏ sát hộp ngắn dần và tủa nhẹ ra ngoài.
+   Không còn lá nào dưới đáy hộp (đã loại ở CPU) nên không cần ép dẹt → hết z-fighting. */
 function GrassField() {
   const geo = useMemo(() => makeGrassGeometry(), []);
   const mat = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
     m.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = { value: 0 };
-      shader.uniforms.uBox = { value: new THREE.Vector2(B / 2 - 0.02, B / 2 - 0.02) };
+      shader.uniforms.uBox = { value: new THREE.Vector2(GRASS_BOX, GRASS_BOX) };
+      shader.uniforms.uMinH = { value: GRASS_MIN_H };
+      shader.uniforms.uRamp = { value: GRASS_RAMP };
+      shader.uniforms.uCap0 = { value: GRASS_CAP0 };
+      shader.uniforms.uCapK = { value: GRASS_CAPK };
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
           `#include <common>
 attribute float aH;
+attribute float aLen;
 attribute vec3 aBase;
 attribute float aYaw;
 attribute float aLean;
 uniform float uTime;
-uniform vec2 uBox;`,
+uniform vec2 uBox;
+uniform float uMinH;
+uniform float uRamp;
+uniform float uCap0;
+uniform float uCapK;`,
         )
         .replace(
           '#include <begin_vertex>',
           `vec3 lp = position;
 float h = aH;
+
+// Khoảng cách từ GỐC lá tới footprint hộp: tính theo gốc để cả lá co giãn đồng nhất, không méo
+vec2 qb = abs(aBase.xz) - uBox;
+vec2 qo = max(qb, vec2(0.0));
+float dB = length(qo);
+vec2 sgn = sign(aBase.xz);
+vec2 outDir = dB > 0.0001 ? normalize(qo * sgn) : (qb.x > qb.y ? vec2(sgn.x, 0.0) : vec2(0.0, sgn.y));
+
+// Ramp chiều cao: GRASS_MIN_H sát hộp → 1.0 ở xa
+float ramp = mix(uMinH, 1.0, smoothstep(0.0, uRamp, dB));
+// Trần chiều cao theo tia nhìn của camera (chỉ phía trước/hai bên, phía sau hộp không cần): lá không che mặt trước
+float zf = smoothstep(-1.0, 1.0, aBase.z);
+float capS = (uCap0 + uCapK * dB) / aLen;
+float s = min(ramp, mix(1.0, capS, zf));
+
+lp.y *= s;
+lp.z *= s;
+
+// Gió: biên độ tỉ lệ theo độ cao lá đã co, nên lá sát hộp gần như đứng yên (không trượt qua mép hộp)
 float ph = aBase.x * 0.55 + aBase.z * 0.8;
 float gust = sin(uTime * 1.1 + ph) * 0.5 + sin(uTime * 2.3 + ph * 1.7) * 0.25 + 0.25;
-float sway = gust * h * h * 0.35 * aLean;
+float sway = gust * h * h * 0.35 * aLean * s;
 lp.x += sway;
 lp.z += sway * 0.3;
+
 float cy = cos(aYaw);
 float sy = sin(aYaw);
 vec3 wp = aBase + vec3(cy * lp.x + sy * lp.z, lp.y, -sy * lp.x + cy * lp.z);
-vec2 q = abs(wp.xz) - uBox;
-float outsideD = length(max(q, vec2(0.0)));
-float inside = step(max(q.x, q.y), 0.0);
-vec2 n = q.x > q.y ? vec2(sign(wp.x), 0.0) : vec2(0.0, sign(wp.z));
-float near = 1.0 - smoothstep(0.0, 1.6, outsideD);
-float flatten = mix(1.0, 0.1, inside);
-float lean = near * (1.0 - inside) * h * h * 1.1;
-wp.y = aBase.y + (wp.y - aBase.y) * flatten;
-wp.xz += n * (lean + inside * h * 0.5);
+
+// Tủa nhẹ ra ngoài quanh cạnh hộp (chỉ theo hướng ra xa hộp)
+float near = 1.0 - smoothstep(0.0, 1.6, dB);
+wp.xz += outDir * (near * h * h * 0.3 * aLean);
+
+// Chốt an toàn: đỉnh lá nào lọt vào footprint thì đẩy ra mép (không lá nào thò qua thành/đáy)
+vec2 q2 = abs(wp.xz) - uBox;
+float insideW = step(max(q2.x, q2.y), 0.0);
+vec2 n2 = q2.x > q2.y ? vec2(sign(wp.x), 0.0) : vec2(0.0, sign(wp.z));
+wp.xz += n2 * (-max(q2.x, q2.y) + 0.02) * insideW;
+
 vec3 transformed = wp;`,
         );
       m.userData.shader = shader;
@@ -231,7 +299,8 @@ vec3 transformed = wp;`,
     const sh = mat.userData.shader;
     if (sh) sh.uniforms.uTime.value = clock.elapsedTime;
   });
-  return <mesh geometry={geo} material={mat} receiveShadow />;
+  // geometry giữ toạ độ cục bộ nên bounding sphere nhỏ: tắt frustum culling cho chắc
+  return <mesh geometry={geo} material={mat} receiveShadow frustumCulled={false} />;
 }
 
 /* Bóng tiếp xúc (contact shadow): quầng tối mềm ngay dưới đáy hộp, làm hộp nổi trên bàn */
@@ -251,9 +320,10 @@ function ContactShadow() {
     return new THREE.CanvasTexture(c);
   }, []);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y + 0.004, 0]}>
+    // renderOrder âm: vẽ trước các mặt trong suốt của hộp (orangeMat transparent) → không bị đổi thứ tự theo khoảng cách camera gây nháy
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SHADOW_Y, 0]} renderOrder={-1}>
       <planeGeometry args={[B * 1.7, B * 1.7]} />
-      <meshBasicMaterial map={tex} transparent depthWrite={false} />
+      <meshBasicMaterial map={tex} transparent depthWrite={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
     </mesh>
   );
 }
@@ -370,7 +440,11 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
       ringRef.current.rotation.x = evalCurve(RING_RX, t);
       ringRef.current.rotation.y = spinAt(t) + Math.sin(state.clock.elapsedTime * 0.9) * 0.08;
     }
-    if (lidRef.current) lidRef.current.rotation.x = -evalCurve(LID, t);
+    if (lidRef.current) {
+      lidRef.current.rotation.x = -evalCurve(LID, t);
+      // gỡ lưỡi gài: nắp trượt nhẹ ra trước rồi mới lật (chặn âm do nội suy Catmull-Rom)
+      lidRef.current.position.z = -B / 2 + Math.max(0, evalCurve(LID_PULL, t));
+    }
 
 
     state.camera.position.set(0, evalCurve(CAM_Y, t), evalCurve(CAM_Z, t));
@@ -405,16 +479,17 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
         <mesh position={[0, -BOARD / 2, 0]} castShadow receiveShadow material={[orangeMat, orangeMat, liningMat, orangeMat, orangeMat, orangeMat]}>
           <boxGeometry args={[B, BOARD, B]} />
         </mesh>
-        <mesh position={[0, H / 2, B / 2 - BOARD / 2]} castShadow material={orangeMat}>
+        {/* Thành khay: mặt ngoài cam, mặt trong kem (theo video). Thứ tự mặt: +x, -x, +y, -y, +z, -z */}
+        <mesh position={[0, H / 2, B / 2 - BOARD / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, orangeMat, liningMat]}>
           <boxGeometry args={[B, H, BOARD]} />
         </mesh>
-        <mesh position={[0, H / 2, -B / 2 + BOARD / 2]} castShadow material={orangeMat}>
+        <mesh position={[0, H / 2, -B / 2 + BOARD / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, liningMat, orangeMat]}>
           <boxGeometry args={[B, H, BOARD]} />
         </mesh>
-        <mesh position={[-(B / 2 - BOARD / 2), H / 2, 0]} castShadow material={orangeMat}>
+        <mesh position={[-(B / 2 - BOARD / 2), H / 2, 0]} castShadow material={[liningMat, orangeMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
           <boxGeometry args={[BOARD, H, B - 2 * BOARD]} />
         </mesh>
-        <mesh position={[B / 2 - BOARD / 2, H / 2, 0]} castShadow material={orangeMat}>
+        <mesh position={[B / 2 - BOARD / 2, H / 2, 0]} castShadow material={[orangeMat, liningMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
           <boxGeometry args={[BOARD, H, B - 2 * BOARD]} />
         </mesh>
         {/* Lõm tròn vừa khít vòng */}
@@ -460,9 +535,9 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
       {/* Mặt bàn: cùng hệ toạ độ với hộp và vòng, nhận bóng đổ */}
       {/* Đất nền dưới cỏ */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y - 0.01, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SOIL_Y, 0]} receiveShadow>
         <planeGeometry args={[80, 80]} />
-        <meshStandardMaterial color="#2E3A1C" roughness={1} />
+        <meshStandardMaterial color="#2E3A1C" roughness={1} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
       </mesh>
       <GrassField />
       <ContactShadow />
