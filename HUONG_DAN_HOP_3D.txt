@@ -1,0 +1,19 @@
+HỘP QUÀ 3D (NHÌN TỪ TRÊN XUỐNG, NẮP MỞ)
+
+1) Giải nén zip vào thư mục gốc frontend (chỗ có package.json). Không cần npm install.
+
+2) File mới:
+   - src/components/invitation/box/InvitationBox.tsx   (component hộp)
+   - src/app/box-preview/page.tsx                       (trang xem trước, mở ở /box-preview)
+
+3) Dùng trong code:
+   <InvitationBox progress={0.6} size={320} color="#F28C28" lining="#FBF7F0" logo={<img src="/logo.png" alt="" />} />
+   - progress: 0 = nắp đóng, 1 = nắp mở hết (góc mở tối đa 100°). Có thể nối với cuộn trang.
+   - logo: để trống thì dùng logo mẫu (đĩa trắng có vệt cam). Truyền logo thật để thay.
+
+4) Xem trước: chạy frontend rồi mở http://localhost:3000/box-preview và kéo thanh để mở nắp.
+   Trang này có thể xoá khi không cần.
+
+Lưu ý:
+- Hình học nắp, thân và lót đã theo video mẫu, nhưng đây là xấp xỉ bằng CSS 3D. Chưa gắn vào phần mở đầu thiệp.
+- Logo mẫu là hình minh hoạ, cần thay bằng logo thật qua prop logo.
