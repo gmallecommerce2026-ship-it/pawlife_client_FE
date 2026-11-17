@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RING_RADIUS, CAM_Z, CAM_FOV, CANVAS_SCALE } from './ringConfig';
 
-const FRONT_SRC = '/images/qr-tag-only.webp';
+const FRONT_SRC = '/images/qr-tag-only.png';
 const RADIUS = RING_RADIUS;   // bán kính đĩa; 1 đơn vị ≈ 1.375 cm
 export const HALF_THICK = 0.173;     // nửa độ dày: 0.475 cm / 2.75 cm × (đường kính 2 đơn vị)
 const EDGE = 0.16;            // bán kính bo mép (gần bằng nửa dày: viền tròn đều)
@@ -199,7 +199,7 @@ function seeded(seed: number) {
   };
 }
 
-/* Mặt trước dự phòng: vẽ bằng canvas khi chưa có file /images/qr-tag-only.webp. */
+/* Mặt trước dự phòng: vẽ bằng canvas khi chưa có file /images/qr-tag-only.png. */
 export function makeFrontFallback(): THREE.CanvasTexture {
   const S = 1024;
   const canvas = document.createElement('canvas');

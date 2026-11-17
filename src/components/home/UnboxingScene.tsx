@@ -131,6 +131,16 @@ const SHADOW_Y = SOIL_Y + 0.006;       // bóng tiếp xúc nằm trên đất 0
 const GRASS_ROOT_Y = SOIL_Y + 0.008;   // gốc cỏ cắm nhẹ vào đất, cách đáy hộp 0.012
 const GRASS_HALF = 9;
 
+/* Tinh chỉnh ánh sáng và không khí */
+const ENV_INTENSITY = 0.75;   // độ mạnh phản xạ môi trường (0.5 tối/tương phản hơn, 1 phẳng/sáng hơn)
+const EXPOSURE = 1.05;        // phơi sáng tổng
+const FOG_COLOR = '#CDB39A';  // trùng DESK_BASE trong ScrollUnboxingHero.tsx
+const FOG_NEAR = 22;
+const FOG_FAR = 62;
+const KEY_INTENSITY = 300;    // đèn chính (ấm)
+const FILL_INTENSITY = 0.7;   // đèn phụ lạnh phía trước-trái, mở bóng đổ
+const RIM_INTENSITY = 1.1;    // đèn viền phía sau, tách hộp khỏi nền
+
 /* Tinh chỉnh cỏ quanh hộp */
 const GRASS_COUNT = 12000;   // tổng số lá
 const GRASS_PAD = 0.35;      // vùng đệm ngoài thành hộp: tuyệt đối không mọc lá
@@ -190,7 +200,7 @@ function makeGrassGeometry(): THREE.BufferGeometry {
       const shade = (0.5 + 0.5 * t) * tone;
       for (const x of [-hw, hw]) {
         pos.push(x, y, z);
-        col.push(0.14 * shade, (0.26 + 0.1 * t) * shade, 0.07 * shade);
+        col.push((0.12 + 0.07 * t) * shade, (0.24 + 0.2 * t) * shade, 0.05 * shade);
         aH.push(t);
         aBase.push(bx, GRASS_ROOT_Y, bz);
         aLen.push(H);
@@ -312,7 +322,7 @@ function ContactShadow() {
     c.height = S;
     const g = c.getContext('2d')!;
     const grad = g.createRadialGradient(S / 2, S / 2, S * 0.2, S / 2, S / 2, S * 0.5);
-    grad.addColorStop(0, 'rgba(20,28,12,0.6)');
+    grad.addColorStop(0, 'rgba(20,28,12,0.7)');
     grad.addColorStop(0.6, 'rgba(20,28,12,0.25)');
     grad.addColorStop(1, 'rgba(20,28,12,0)');
     g.fillStyle = grad;
@@ -352,13 +362,15 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     const pmrem = new THREE.PMREMGenerator(gl);
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = env;
-    scene.fog = new THREE.Fog('#C7AD92', 16, 48);
-    gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = 0.95;
+    scene.environmentIntensity = ENV_INTENSITY;   // giảm phản xạ phòng studio để ánh sáng khối rõ hơn
+    scene.fog = new THREE.Fog(FOG_COLOR, FOG_NEAR, FOG_FAR); // cùng màu nền trang → hòa vào nền, không phủ sương đục lên cỏ
+    gl.toneMapping = THREE.NeutralToneMapping;    // giữ đúng màu cam thương hiệu, không bị nhạt/ngả như ACES
+    gl.toneMappingExposure = EXPOSURE;
     gl.shadowMap.enabled = true;
     gl.shadowMap.type = THREE.VSMShadowMap;
     return () => {
       scene.environment = null;
+      scene.environmentIntensity = 1;
       scene.fog = null;
       gl.toneMapping = THREE.NoToneMapping;
       gl.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -453,26 +465,28 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
   return (
     <>
-      <ambientLight intensity={0.12} />
-      <hemisphereLight args={['#F4E8DA', '#4A3626', 0.12]} />
-      {/* Đèn spot chính từ trên bên phải: vùng sáng có mép mềm, phần còn lại của bàn tối dần */}
+      <ambientLight intensity={0.2} color="#FFF3E6" />
+      <hemisphereLight args={['#FFF1DF', '#6B5A3E', 0.45]} />
+      {/* Đèn chính ấm từ trên bên phải: góc rộng, mép rất mềm → vùng sáng lan hết khung, tối dần ra xa nhưng không đen */}
       <spotLight
-        position={[6, 10, 4]}
+        position={[5, 11, 6]}
         target-position={[0, 0, 0]}
-        angle={0.42}
-        penumbra={0.9}
-        intensity={260}
+        angle={0.95}
+        penumbra={0.85}
+        intensity={KEY_INTENSITY}
         decay={2}
-        distance={40}
-        color="#FFF1E0"
+        distance={50}
+        color="#FFE9CF"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-radius={14}
-        shadow-blurSamples={18}
+        shadow-radius={8}
+        shadow-blurSamples={16}
         shadow-bias={-0.0004}
       />
-      {/* Đèn viền phía sau: tách khối hộp khỏi nền */}
-      <directionalLight position={[-4, 3, -5]} intensity={0.35} color="#FFE2C8" />
+      {/* Đèn phụ lạnh phía trước-trái (không đổ bóng): mở vùng tối, tạo tương phản ấm/lạnh cho mặt trước hộp */}
+      <directionalLight position={[-6, 5, 9]} intensity={FILL_INTENSITY} color="#D6E4FF" />
+      {/* Đèn viền ấm phía sau: tách khối hộp khỏi nền */}
+      <directionalLight position={[-5, 4, -6]} intensity={RIM_INTENSITY} color="#FFD9B0" />
 
       {/* Hộp: đáy, bốn thành, lõm tròn, nắp */}
       <group ref={boxRef}>
@@ -537,7 +551,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
       {/* Đất nền dưới cỏ */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SOIL_Y, 0]} receiveShadow>
         <planeGeometry args={[80, 80]} />
-        <meshStandardMaterial color="#2E3A1C" roughness={1} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+        <meshStandardMaterial color="#3B4A22" roughness={1} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
       </mesh>
       <GrassField />
       <ContactShadow />
