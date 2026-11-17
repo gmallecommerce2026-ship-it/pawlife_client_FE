@@ -167,6 +167,31 @@ function makeWoodTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/* Bóng tiếp xúc (contact shadow): quầng tối mềm ngay dưới đáy hộp, làm hộp nổi trên bàn */
+function ContactShadow() {
+  const tex = useMemo(() => {
+    const S = 512;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(S / 2, S / 2, S * 0.2, S / 2, S / 2, S * 0.5);
+    grad.addColorStop(0, 'rgba(40,24,12,0.55)');
+    grad.addColorStop(0.6, 'rgba(40,24,12,0.22)');
+    grad.addColorStop(1, 'rgba(40,24,12,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+    const t = new THREE.CanvasTexture(c);
+    return t;
+  }, []);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BOARD - 0.0015, 0]}>
+      <planeGeometry args={[B * 1.7, B * 1.7]} />
+      <meshBasicMaterial map={tex} transparent depthWrite={false} />
+    </mesh>
+  );
+}
+
 /* Đồ trang trí nhỏ đặt ở rìa bàn: cốc gốm và viên đá, không chắn hộp */
 function DeskProps() {
   const cupGeo = useMemo(() => {
@@ -209,18 +234,21 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     scene.environment = env;
     scene.fog = new THREE.Fog('#C7AD92', 16, 48);
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = 1.0;
+    gl.toneMappingExposure = 0.95;
+    gl.shadowMap.enabled = true;
+    gl.shadowMap.type = THREE.VSMShadowMap;
     return () => {
       scene.environment = null;
       scene.fog = null;
       gl.toneMapping = THREE.NoToneMapping;
+      gl.shadowMap.type = THREE.PCFSoftShadowMap;
       env.dispose();
       pmrem.dispose();
     };
   }, [gl, scene]);
 
   const woodTex = useMemo(() => makeWoodTexture(), []);
-  const woodMat = useMemo(() => new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.72 }), [woodTex]);
+  const woodMat = useMemo(() => new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.78, color: '#E8DCCF' }), [woodTex]);
 
   /* Vật liệu hộp */
   const lidTex = useMemo(() => makeLidTexture(), []);
@@ -303,19 +331,26 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
   return (
     <>
-      <ambientLight intensity={0.22} />
-      <hemisphereLight args={['#FFFFFF', '#8A6E58', 0.2]} />
-      {/* Ánh sáng chiều từ phía trên bên phải: tạo vùng sáng và vùng bóng rõ trên mặt trước */}
-      <directionalLight
-        position={[5, 7, 3]}
-        intensity={1.9}
+      <ambientLight intensity={0.12} />
+      <hemisphereLight args={['#F4E8DA', '#4A3626', 0.12]} />
+      {/* Đèn spot chính từ trên bên phải: vùng sáng có mép mềm, phần còn lại của bàn tối dần */}
+      <spotLight
+        position={[6, 10, 4]}
+        target-position={[0, 0, 0]}
+        angle={0.42}
+        penumbra={0.9}
+        intensity={260}
+        decay={2}
+        distance={40}
+        color="#FFF1E0"
         castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-camera-left={-4}
-        shadow-camera-right={4}
-        shadow-camera-top={4}
-        shadow-camera-bottom={-4}
+        shadow-mapSize={[2048, 2048]}
+        shadow-radius={14}
+        shadow-blurSamples={18}
+        shadow-bias={-0.0004}
       />
+      {/* Đèn viền phía sau: tách khối hộp khỏi nền */}
+      <directionalLight position={[-4, 3, -5]} intensity={0.35} color="#FFE2C8" />
 
       {/* Hộp: đáy, bốn thành, lõm tròn, nắp */}
       <group ref={boxRef}>
@@ -379,6 +414,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BOARD - 0.002, 0]} receiveShadow material={woodMat}>
         <planeGeometry args={[80, 80]} />
       </mesh>
+      <ContactShadow />
       <DeskProps />
     </>
   );

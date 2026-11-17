@@ -189,6 +189,9 @@ export default function ScrollUnboxingHero() {
     <section ref={containerRef} className="relative h-[380svh] w-full" style={{ backgroundColor: DESK_BASE }} aria-label="Giới thiệu QR Tag">
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
 
+        {/* Vignette: mép khung tối hơn, trung tâm sáng hơn */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-[1]" style={{ background: 'radial-gradient(ellipse 75% 65% at 50% 45%, rgba(0,0,0,0) 45%, rgba(40,22,10,0.55) 100%)' }} />
+
         {/* Cảnh 3D duy nhất: hộp + vòng */}
         <div className="pointer-events-none absolute inset-0">
           <UnboxingScene progressRef={progressRef} />
