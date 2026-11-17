@@ -296,9 +296,9 @@ export default function ScrollUnboxingHero() {
 
   /* Hộp: nắp mở, rồi hộp mờ đi và trôi ra khi vòng đã bay khỏi */
   const lidOpen = useTransform(p, [0.03, 0.2], [0, 1], { clamp: true });
-  const boxOpacity = useTransform(p, [0.34, 0.46], [1, 0]);
-  const boxY = useTransform(p, [0.34, 0.46], ['0%', '26%']);
-  const boxScale = useTransform(p, [0.34, 0.46], [1, 0.88]);
+  const boxOpacity = useTransform(p, [0.3, 0.4], [1, 0]);
+  const boxY = useTransform(p, [0.3, 0.4], ['0%', '26%']);
+  const boxScale = useTransform(p, [0.3, 0.4], [1, 0.88]);
 
   /* Vòng: hiện dần khi nắp hở, quỹ đạo cong theo mốc */
   const tagOpacity = useTransform(p, [0.12, 0.26], [0, 1], { clamp: true });
@@ -315,6 +315,8 @@ export default function ScrollUnboxingHero() {
   const shadowScale = useTransform(tagZ, [0, 220], [0.9, 0.62]);
   // quầng sáng phía sau vòng sáng dần khi vòng tiến gần camera
   const glowOpacity = useTransform(tagZ, [0, 200], [0, 0.55]);
+  // Hiệu ứng độ sâu trường ảnh: nền mờ dần khi vòng tiến gần camera
+  const boxBlur = useTransform(tagZ, [0, 340], ['blur(0px)', 'blur(3px)']);
 
   /* Nghiêng theo chuột và tốc độ cuộn */
   const mx = useMotionValue(0);
@@ -366,7 +368,7 @@ export default function ScrollUnboxingHero() {
         >
           <motion.div className="absolute inset-0" style={{ rotateX: sceneRotX, rotateY: sceneRotY, transformStyle: 'preserve-3d' }}>
             {/* Hộp 3D nhìn từ trên xuống */}
-            <motion.div className="absolute inset-0 flex items-center justify-center" style={{ opacity: boxOpacity, y: boxY, scale: boxScale }}>
+            <motion.div className="absolute inset-0 flex items-center justify-center" style={{ opacity: boxOpacity, y: boxY, scale: boxScale, filter: boxBlur }}>
               <ScrollBox open={lidOpen} size={boxSize} />
             </motion.div>
 

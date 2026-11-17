@@ -4,10 +4,13 @@
 
 /** bán kính đĩa (đơn vị 3D) */
 export const RING_RADIUS = 1;
-/** vị trí camera trên trục Z và góc nhìn dọc (độ) của canvas */
+/** vị trí camera trên trục Z */
 export const CAM_Z = 7;
-export const CAM_FOV = 28;
+/** góc nhìn dọc (độ) của canvas */
+export const CAM_FOV = 53;
+/** canvas 3D rộng gấp đôi khung vòng, để vòng khi zoom gần không bị cắt mép */
+export const CANVAS_SCALE = 2;
 
-/** Đường kính vòng so với chiều cao khung nhìn của canvas (0 → 1) */
+/** Đường kính vòng so với khung vòng (không tính phần canvas thừa) */
 export const RING_SCREEN_FRACTION =
-  (2 * RING_RADIUS) / (2 * CAM_Z * Math.tan((CAM_FOV / 2) * (Math.PI / 180)));
+  ((2 * RING_RADIUS) / (2 * CAM_Z * Math.tan((CAM_FOV / 2) * (Math.PI / 180)))) * CANVAS_SCALE;

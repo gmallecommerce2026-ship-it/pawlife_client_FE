@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'rea
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { RING_RADIUS, CAM_Z, CAM_FOV } from './ringConfig';
+import { RING_RADIUS, CAM_Z, CAM_FOV, CANVAS_SCALE } from './ringConfig';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
 const RADIUS = RING_RADIUS;   // bán kính đĩa; 1 đơn vị ≈ 1.375 cm
@@ -351,7 +351,7 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
     clearcoatRoughness: 0.06,
     ior: 1.5,
     specularIntensity: 0.6,
-    envMapIntensity: 1.1,
+    envMapIntensity: 0.8,
   };
 
   const bodyMat = useMemo(
@@ -388,18 +388,21 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
 export default function QrTag3DCanvas({ progressRef }: { progressRef: MutableRefObject<number> }) {
   return (
-    <Canvas
-      camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV }}
-      gl={{ antialias: true, alpha: true }}
-      flat
-      dpr={[1, 2]}
-      style={{ background: 'transparent' }}
-    >
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={['#FFFFFF', '#8A6E58', 0.7]} />
-      <directionalLight position={[3, 5, 6]} intensity={2.6} />
-      <directionalLight position={[-5, -2, 2]} intensity={0.35} color="#FFF4EA" />
-      <Tag progressRef={progressRef} />
-    </Canvas>
+    <div style={{ position: 'absolute', left: `${-(CANVAS_SCALE - 1) * 50}%`, top: `${-(CANVAS_SCALE - 1) * 50}%`, width: `${CANVAS_SCALE * 100}%`, height: `${CANVAS_SCALE * 100}%` }}>
+      <Canvas
+        camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV }}
+        gl={{ antialias: true, alpha: true }}
+        flat
+        dpr={[1, 2]}
+        style={{ background: 'transparent' }}
+      >
+        {/* ánh sáng vừa phải: logo không bị cháy sang vàng khi gần camera */}
+        <ambientLight intensity={0.5} />
+        <hemisphereLight args={['#FFFFFF', '#8A6E58', 0.45]} />
+        <directionalLight position={[3, 5, 6]} intensity={1.5} />
+        <directionalLight position={[-5, -2, 2]} intensity={0.3} color="#FFF4EA" />
+        <Tag progressRef={progressRef} />
+      </Canvas>
+    </div>
   );
 }
