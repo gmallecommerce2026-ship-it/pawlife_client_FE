@@ -185,13 +185,26 @@ const SKIRT: Key[] = [[0, 0], [0.028, 1], [0.04, 1], [1, 1]];
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
 
-/* Texture nắp: màu cam, chữ mảnh, logo ở giữa */
+/* Vị trí logo trên mặt nắp (tỉ lệ theo cạnh texture): dùng chung cho màu, bản đồ bóng, nhám và bump để chúng khớp nhau từng điểm ảnh */
+const LOGO_POS = 0.33;
+const LOGO_SIZE = 0.34;
+const LID_ROUGH = 0.88;        // độ nhám của bìa sần (giữ như cũ)
+const LOGO_ROUGH = 0.3;        // độ nhám nền dưới lớp phủ của logo (thấp = bóng hơn)
+const LOGO_COAT_ROUGH = 0.06;  // độ nhám lớp phủ bóng trên logo (càng thấp phản chiếu càng rõ, khoảng 0.03–0.15)
+
+/* Texture nắp: màu cam, chữ mảnh, logo ở giữa.
+   Vẽ ở độ phân giải cao (2048; mobile 1536 cho đỡ tốn bộ nhớ) rồi bật anisotropy ở Scene → chữ và logo nét hơn, nhất là khi nhìn nghiêng.
+   Toạ độ vẽ vẫn tính trên hệ 1024 (hệ số k) nên bố cục không đổi. */
 function makeLidTexture(): THREE.CanvasTexture {
-  const S = 1024;
+  const SIZE = isTouchDevice() ? 1536 : 2048;
+  const k = SIZE / 1024;
+  const S = 1024; // hệ toạ độ logic
   const canvas = document.createElement('canvas');
-  canvas.width = S;
-  canvas.height = S;
+  canvas.width = SIZE;
+  canvas.height = SIZE;
   const g = canvas.getContext('2d')!;
+  g.save();
+  g.scale(k, k);
   g.fillStyle = ORANGE;
   g.fillRect(0, 0, S, S);
   g.fillStyle = '#FFFFFF';
@@ -207,9 +220,79 @@ function makeLidTexture(): THREE.CanvasTexture {
   g.textAlign = 'center';
   g.fillText('The QR tag dành cho thú cưng', S / 2, S - 70);
   g.globalAlpha = 1;
+  g.restore(); // trả về hệ điểm ảnh thật: lúc vẽ logo sau khi ảnh tải xong không bị nhân tỉ lệ lần nữa
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/* Các bản đồ riêng của mặt trên nắp, để logo bóng còn phần bìa vẫn sần:
+   - bump: hạt giấy như cũ nhưng PHẲNG ở chỗ logo (lớp tráng bóng thì mịn)
+   - gloss: trắng ở logo, đen ở nơi khác → điều khiển lớp phủ bóng (clearcoat)
+   - rough: độ nhám theo từng điểm: sần ở bìa, thấp ở logo
+   Ba bản đồ này là dữ liệu (không phải màu) nên để NoColorSpace. */
+type LidMaps = { bump: THREE.CanvasTexture; gloss: THREE.CanvasTexture; rough: THREE.CanvasTexture };
+function makeLidMaps(): LidMaps {
+  const mk = (size: number) => {
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    return c;
+  };
+  // bump: nhiễu hạt, mật độ ~384 điểm/đơn vị như hạt giấy cũ (1536 điểm trên 4 đơn vị)
+  const BS = 1536;
+  const bc = mk(BS);
+  const bg = bc.getContext('2d')!;
+  const img = bg.createImageData(BS, BS);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 185 + Math.floor(Math.random() * 70);
+    img.data[i] = v;
+    img.data[i + 1] = v;
+    img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  bg.putImageData(img, 0, 0);
+  // gloss: nền đen
+  const GS = 1024;
+  const gc = mk(GS);
+  const gg = gc.getContext('2d')!;
+  gg.fillStyle = '#000000';
+  gg.fillRect(0, 0, GS, GS);
+  // rough: nền nhám (độ nhám nằm ở kênh G, giá trị xám = độ nhám × 255)
+  const rc = mk(GS);
+  const rg = rc.getContext('2d')!;
+  const grey = (r: number) => { const v = Math.round(r * 255); return `rgb(${v},${v},${v})`; };
+  rg.fillStyle = grey(LID_ROUGH);
+  rg.fillRect(0, 0, GS, GS);
+  const bump = new THREE.CanvasTexture(bc);
+  const gloss = new THREE.CanvasTexture(gc);
+  const rough = new THREE.CanvasTexture(rc);
+  return { bump, gloss, rough };
+}
+
+/* Đóng dấu hình dáng logo (theo kênh alpha của ảnh) lên các bản đồ, với màu của từng bản đồ: logo có nền trong suốt thì chỉ phần logo bóng */
+function paintLogoMaps(maps: LidMaps, img: HTMLImageElement) {
+  const stamp = (tex: THREE.CanvasTexture, color: string) => {
+    const canvas = tex.image as HTMLCanvasElement;
+    const g = canvas.getContext('2d');
+    if (!g) return;
+    const S = canvas.width;
+    const w = Math.max(1, Math.round(S * LOGO_SIZE));
+    const tmp = document.createElement('canvas');
+    tmp.width = w;
+    tmp.height = w;
+    const tg = tmp.getContext('2d')!;
+    tg.imageSmoothingQuality = 'high';
+    tg.drawImage(img, 0, 0, w, w);
+    tg.globalCompositeOperation = 'source-in'; // giữ hình dáng logo, thay màu
+    tg.fillStyle = color;
+    tg.fillRect(0, 0, w, w);
+    g.drawImage(tmp, S * LOGO_POS, S * LOGO_POS, S * LOGO_SIZE, S * LOGO_SIZE);
+    tex.needsUpdate = true;
+  };
+  stamp(maps.bump, 'rgb(220,220,220)');                                            // phẳng, mức giữa dải hạt
+  stamp(maps.gloss, '#FFFFFF');                                                    // có lớp phủ bóng
+  stamp(maps.rough, `rgb(${Math.round(LOGO_ROUGH * 255)},${Math.round(LOGO_ROUGH * 255)},${Math.round(LOGO_ROUGH * 255)})`); // nhám thấp
 }
 
 /* Các mức độ cao (đơn vị thế giới). Hộp nằm đè lên một lớp cỏ dày GRASS_BED:
@@ -489,7 +572,23 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
   const cardGrain = useMemo(() => makeGrainTexture(), []);
   const orangeMat = useMemo(() => new THREE.MeshStandardMaterial({ color: ORANGE, roughness: 0.88, bumpMap: cardGrain, bumpScale: 0.02, transparent: true }), [cardGrain]);
   const liningMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#F5EEE4', roughness: 0.92, bumpMap: cardGrain, bumpScale: 0.015, transparent: true }), [cardGrain]);
-  const lidTopMat = useMemo(() => new THREE.MeshStandardMaterial({ map: lidTex, roughness: 0.85, bumpMap: cardGrain, bumpScale: 0.015, transparent: true }), [lidTex, cardGrain]);
+  const lidMaps = useMemo(() => makeLidMaps(), []);
+  // Mặt trên nắp: bìa sần (nhám, có hạt) còn logo được "tráng bóng" bằng clearcoat giới hạn theo hình logo (clearcoatMap), bump phẳng ở logo
+  const lidTopMat = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        map: lidTex,
+        roughness: 1, // độ nhám thật lấy từ roughnessMap (nhân với 1)
+        roughnessMap: lidMaps.rough,
+        bumpMap: lidMaps.bump,
+        bumpScale: 0.015,
+        clearcoat: 1,
+        clearcoatMap: lidMaps.gloss,
+        clearcoatRoughness: LOGO_COAT_ROUGH,
+        transparent: true,
+      }),
+    [lidTex, lidMaps],
+  );
   const insertMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#F8F4EC', roughness: 0.93, bumpMap: cardGrain, bumpScale: 0.012 }), [cardGrain]);
   const teethMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#FBF8F2', roughness: 0.93, side: THREE.DoubleSide }), []);
   const holeWallMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#A99B89', roughness: 1, side: THREE.DoubleSide }), []);
@@ -506,10 +605,13 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
       const g = canvas.getContext('2d');
       if (!g) return;
       const S = canvas.width;
-      g.drawImage(img, S * 0.33, S * 0.33, S * 0.34, S * 0.34);
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(img, S * LOGO_POS, S * LOGO_POS, S * LOGO_SIZE, S * LOGO_SIZE);
       lidTex.needsUpdate = true;
+      paintLogoMaps(lidMaps, img); // cùng vị trí, cùng hình dáng → lớp bóng khớp đúng logo
     };
-  }, [lidTex]);
+  }, [lidTex, lidMaps]);
 
   /* Vật liệu vòng: men sứ, có hạt, phản xạ môi trường */
   const ringGeo = useMemo(() => makeRingGeometry(), []);
@@ -538,7 +640,11 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
   useEffect(() => {
     frontTex.anisotropy = maxAniso;
     backTex.anisotropy = maxAniso;
-  }, [frontTex, backTex, maxAniso]);
+    // Mặt nắp: anisotropy tối đa để chữ/logo không nhoè khi nhìn nghiêng từ camera
+    lidTex.anisotropy = maxAniso;
+    lidMaps.gloss.anisotropy = maxAniso;
+    lidMaps.rough.anisotropy = maxAniso;
+  }, [frontTex, backTex, lidTex, lidMaps, maxAniso]);
   const enamel = { roughness: 0.5, roughnessMap: grain, bumpMap: grain, bumpScale: 0.7, clearcoat: 0.22, clearcoatRoughness: 0.32, ior: 1.5, specularIntensity: 0.45, envMapIntensity: 0.65 };
   // Mép bo và vách khe KHÔNG dùng bump/roughness map: UV của mép là phép chiếu phẳng nên trên mặt dốc hạt bị kéo thành vệt, gây các mảng đen ở mép dưới
   const ringBody = useMemo(() => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', ...enamel, bumpMap: null, roughnessMap: null, side: THREE.DoubleSide }), [grain]);
