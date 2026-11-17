@@ -1,28 +1,32 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 // src/components/home/ScrollUnboxingHero.tsx
-// Hero cuộn theo tiến độ: kéo chuột/vuốt → video mở hộp tua theo, rồi chuyển sang ảnh sản phẩm
-// và các chương chữ. Lấy cảm hứng từ ImmersiveScrollHero của template icards.
+// Hero cuộn theo tiến độ, không dùng video. Hộp cam được vẽ bằng CSS:
+// cuộn xuống → nắp hộp mở ra → viên tag được nhấc lên → hộp hạ xuống, tag đứng giữa màn hình.
+// Lấy cảm hứng từ ImmersiveScrollHero của template icards.
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
-import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
+import {
+  AnimatePresence,
+  motion,
+  useMotionTemplate,
+  useMotionValueEvent,
+  useScroll,
+  useSpring,
+  useTransform,
+} from 'framer-motion';
 
 /* ------------------------------------------------------------------ */
-/*  CẤU HÌNH - đổi asset và nội dung ở đây                              */
+/*  CẤU HÌNH                                                           */
 /* ------------------------------------------------------------------ */
-// Logo tạm: thay bằng logo chính thức khi có (đặt file vào public/ rồi sửa đường dẫn này)
+// Logo tạm: thay bằng logo chính thức khi có
 export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
-const VIDEO_SRC = '/videos/qr-tag-unboxing.mp4';
-const POSTER_SRC = '/images/qr-tag-poster.jpg';
-const PRODUCT_SRC = '/images/qr-tag.webp';
+const TAG_SRC = '/images/qr-tag-only.webp';
 const CTA_HREF = '/the-qr';
 
-const COLOR = { brand: '#E89B5A', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
-
-// Video mở hộp chiếm 0 → VIDEO_END của tiến độ cuộn; sau đó chuyển sang ảnh sản phẩm
-const VIDEO_END = 0.5;
+const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
 const FEATURES = [
   { icon: History, title: 'PawHistory', text: 'Lưu trữ hồ sơ sức khoẻ' },
@@ -47,17 +51,12 @@ const CHAPTERS: Chapter[] = [
     lines: [{ text: 'Một chiếc tag nhỏ.' }, { text: 'Cả hồ sơ của bé.', accent: true }],
   },
   {
-    range: [0.16, 0.46],
+    range: [0.16, 0.44],
     side: 'left',
     eyebrow: 'Mở hộp',
     lines: [{ text: 'Bên trong là một danh tính riêng cho bé của bạn.' }],
   },
-  {
-    range: [0.5, 0.78],
-    side: 'right',
-    eyebrow: 'Ba điều tạo nên QR Tag',
-    features: true,
-  },
+  { range: [0.5, 0.78], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
   {
     range: [0.8, 1],
     side: 'center',
@@ -69,8 +68,8 @@ const CHAPTERS: Chapter[] = [
 
 const POS: Record<Chapter['side'], string> = {
   center: 'bottom-10 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
-  left: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-16 lg:right-auto lg:top-1/2 lg:-translate-y-1/2 lg:w-[340px]',
-  right: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-auto lg:right-16 lg:top-1/2 lg:-translate-y-1/2 lg:w-[340px]',
+  left: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-12 lg:right-auto lg:top-1/2 lg:-translate-y-1/2 lg:w-[300px]',
+  right: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-auto lg:right-12 lg:top-1/2 lg:-translate-y-1/2 lg:w-[300px]',
 };
 
 function ChapterBody({ c }: { c: Chapter }) {
@@ -78,11 +77,7 @@ function ChapterBody({ c }: { c: Chapter }) {
     <>
       <p className="mb-3 text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: COLOR.brand }}>{c.eyebrow}</p>
       {c.lines?.map((l) => (
-        <p
-          key={l.text}
-          className="text-[26px] font-bold leading-tight sm:text-[34px]"
-          style={{ color: l.accent ? COLOR.brand : COLOR.ink }}
-        >
+        <p key={l.text} className="text-[26px] font-bold leading-tight sm:text-[34px]" style={{ color: l.accent ? COLOR.brand : COLOR.ink }}>
           {l.text}
         </p>
       ))}
@@ -114,49 +109,35 @@ function ChapterBody({ c }: { c: Chapter }) {
   );
 }
 
-/* Bản tĩnh cho người dùng bật "giảm chuyển động": không ghim, không tua */
-function StaticVersion() {
-  return (
-    <section className="w-full px-6 py-16" style={{ backgroundColor: COLOR.cream }}>
-      <div className="mx-auto flex max-w-[1100px] flex-col items-center gap-10 lg:flex-row">
-        <img src={PRODUCT_SRC} alt="QR Tag dành riêng cho thú cưng" className="w-full max-w-[420px] rounded-[32px] object-contain" />
-        <div className="flex flex-col gap-6">
-          {CHAPTERS.map((c) => (
-            <div key={c.eyebrow}><ChapterBody c={c} /></div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function ScrollUnboxingHero() {
   const containerRef = useRef<HTMLElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const reduceMotion = useReducedMotion();
   const [active, setActive] = useState(0);
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
 
-  // Tua video theo tiến độ cuộn (chỉ trong giai đoạn mở hộp)
   useMotionValueEvent(p, 'change', (v) => {
-    const vid = videoRef.current;
-    if (vid && vid.duration && Number.isFinite(vid.duration)) {
-      const ratio = Math.min(Math.max(v / VIDEO_END, 0), 1);
-      const t = ratio * Math.max(vid.duration - 0.05, 0);
-      if (Math.abs(vid.currentTime - t) > 0.02) vid.currentTime = t;
-    }
     let idx = 0;
     CHAPTERS.forEach((c, i) => { if (v >= c.range[0] - 0.01) idx = i; });
     setActive((prev) => (prev === idx ? prev : idx));
   });
 
-  const videoOpacity = useTransform(p, [VIDEO_END - 0.04, VIDEO_END + 0.04], [1, 0]);
-  const productOpacity = useTransform(p, [VIDEO_END - 0.04, VIDEO_END + 0.04], [0, 1]);
-  const productScale = useTransform(p, [VIDEO_END, 1], [0.96, 1.03]);
+  /* ---- Nắp hộp: mở ra phía sau từ 0.10 → 0.36 ---- */
+  const lidRot = useTransform(p, [0.1, 0.36], [0, -110]);
 
-  if (reduceMotion) return <StaticVersion />;
+  /* ---- Tag: nằm trong hộp → nhô lên → đưa ra giữa màn hình ---- */
+  const tagOpacity = useTransform(p, [0.08, 0.16], [0, 1]);
+  const tagTop = useTransform(p, [0.12, 0.38, 0.5, 0.66], ['40%', '22%', '22%', '50%']);
+  const tagScale = useTransform(p, [0.12, 0.38, 0.66], [0.94, 1, 1.25]);
+  const tagRot = useTransform(p, [0.66, 0.82, 1], [0, 8, 0]);
+  // Phần tag nằm dưới miệng hộp bị cắt, nên tag trông như được lấy ra từ trong hộp
+  const clipBottom = useTransform(p, [0.12, 0.3], [41, 0]);
+  const tagClip = useMotionTemplate`inset(0 0 ${clipBottom}% 0)`;
+
+  /* ---- Hộp: hạ xuống và mờ đi sau khi tag đã ra giữa màn hình ---- */
+  const boxOpacity = useTransform(p, [0.44, 0.6], [1, 0]);
+  const boxY = useTransform(p, [0.44, 0.6], ['0%', '40%']);
+  const shadowOpacity = useTransform(p, [0.44, 0.6], [0.3, 0]);
 
   const chapter = CHAPTERS[active];
 
@@ -169,24 +150,59 @@ export default function ScrollUnboxingHero() {
         {/* Thanh tiến độ */}
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: p, backgroundColor: COLOR.brand }} />
 
-        {/* Khung media 9:16 */}
-        <div className="relative w-[min(78vw,340px)] overflow-hidden rounded-[32px] shadow-2xl" style={{ aspectRatio: '9 / 16', maxHeight: '70svh' }}>
-          <motion.video
-            ref={videoRef}
-            src={VIDEO_SRC}
-            poster={POSTER_SRC}
-            muted
-            playsInline
-            preload="auto"
-            onLoadedData={() => { if (videoRef.current) videoRef.current.currentTime = 0; }}
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ opacity: videoOpacity }}
+        {/* Cảnh: hộp + tag */}
+        <div
+          className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0"
+          style={{ aspectRatio: '1 / 1', perspective: 900 }}
+        >
+          {/* Bóng dưới hộp */}
+          <motion.div
+            className="absolute bottom-[2%] left-[12%] right-[12%] h-[8%] rounded-full bg-black blur-xl"
+            style={{ opacity: shadowOpacity }}
           />
+
+          {/* Hộp */}
+          <motion.div className="absolute inset-0" style={{ opacity: boxOpacity, y: boxY }}>
+            {/* Lòng hộp (lộ ra khi nắp mở) */}
+            <div className="absolute left-[10%] right-[10%] top-[24%] h-[26%] rounded-md bg-white shadow-inner" />
+
+            {/* Thân hộp */}
+            <div
+              className="absolute left-[6%] right-[6%] top-[26%] bottom-[4%] rounded-[18px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.35)]"
+              style={{ background: `linear-gradient(160deg, #F5AE72 0%, ${COLOR.brand} 45%, ${COLOR.brandDk} 100%)` }}
+            >
+              {/* Logo tạm trên mặt hộp */}
+              <div className="absolute left-1/2 top-[38%] flex h-[26%] w-[44%] -translate-x-1/2 items-center justify-center rounded-full bg-white/95 shadow">
+                <img src={BRAND_LOGO} alt="" className="h-[60%] w-auto" />
+              </div>
+            </div>
+
+            {/* Nắp hộp: hinge ở mép trên */}
+            <motion.div
+              className="absolute left-[4%] right-[4%] top-[22%] h-[22%] rounded-[16px] shadow-md"
+              style={{
+                rotateX: lidRot,
+                transformOrigin: 'top center',
+                background: `linear-gradient(180deg, #F7B77F 0%, ${COLOR.brand} 100%)`,
+              }}
+            />
+          </motion.div>
+
+          {/* Tag: nằm trên hộp, bị cắt dưới miệng hộp lúc còn trong hộp */}
           <motion.img
-            src={PRODUCT_SRC}
+            src={TAG_SRC}
             alt="QR Tag"
-            className="absolute inset-0 h-full w-full object-contain p-8"
-            style={{ opacity: productOpacity, scale: productScale, backgroundColor: COLOR.cream }}
+            className="absolute left-1/2 w-[46%] select-none"
+            style={{
+              top: tagTop,
+              x: '-50%',
+              y: '-50%',
+              scale: tagScale,
+              rotate: tagRot,
+              opacity: tagOpacity,
+              clipPath: tagClip,
+              filter: 'drop-shadow(0 18px 24px rgba(0,0,0,0.18))',
+            }}
           />
         </div>
 
