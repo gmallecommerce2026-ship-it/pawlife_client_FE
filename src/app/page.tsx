@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useState, useRef } from "react";
 import { motion, useReducedMotion, useInView, AnimatePresence, useAnimation, useMotionValue, animate } from "framer-motion";
+import ScrollUnboxingHero from "@/components/home/ScrollUnboxingHero";
 import Link from "next/link";
 import axiosClient from "@/lib/api/axiosClient";
 import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
@@ -1234,6 +1235,7 @@ export default function HomePage() {
       <FloatingQrButton />
       <HeaderSection />
       <main className="relative z-10 flex w-full flex-col items-center">
+        <ScrollUnboxingHero />
         <HeroSection />
         <AboutUsSection />
         <QrSection />

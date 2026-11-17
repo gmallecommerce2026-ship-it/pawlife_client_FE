@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" fill="none">
+  <circle cx="20" cy="20" r="16" fill="#E89B5A"/>
+  <ellipse cx="20" cy="14" rx="3" ry="3.6" fill="#fff"/>
+  <ellipse cx="12.5" cy="19" rx="2.4" ry="3" fill="#fff"/>
+  <ellipse cx="27.5" cy="19" rx="2.4" ry="3" fill="#fff"/>
+  <ellipse cx="15" cy="27" rx="3.2" ry="3.4" fill="#fff"/>
+  <ellipse cx="25" cy="27" rx="3.2" ry="3.4" fill="#fff"/>
+  <text x="44" y="26" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="#111827">PawLife</text>
+</svg>
