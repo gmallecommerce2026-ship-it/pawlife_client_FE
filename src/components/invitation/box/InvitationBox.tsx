@@ -3,25 +3,36 @@
 import type { CSSProperties, ReactNode } from "react";
 
 /**
- * Hộp quà 3D nhìn từ trên xuống (camera thẳng đứng phía trên).
- * Nắp gắn bản lề ở cạnh xa (phía trên màn hình), mở tối đa 100°.
- * Hình học theo video mẫu: thân hộp màu, lót trắng bên trong, logo đặt thẳng (không xoay) trên nắp và đáy trong.
+ * Hộp quà 3D (CSS 3D), nhìn từ trên xuống và nghiêng nhẹ để thấy độ dày thành hộp.
  *
- * progress: 0 = đóng, 1 = mở hết. Có thể gắn vào cuộn trang hoặc animation ở nơi dùng.
+ * Kích thước thật: hộp vuông 8 cm × 8 cm, thành dày 1 cm (tức chiều cao thân = size / 8).
+ * Nắp có gờ cạnh thò xuống (lòi ra ở mặt dưới nắp) để gài vào thân khi đóng.
+ * Màu nắp và thân dùng chung một màu phẳng, không tô bóng theo hướng sáng,
+ * để mặt trên không bị lệch sắc so với các mặt còn lại.
+ *
+ * progress: 0 = đóng, 1 = mở hết (nắp lật 100° quanh bản lề ở cạnh xa).
  */
 export type InvitationBoxProps = {
   progress: number;
-  /** cạnh ngang của hộp (px) */
+  /** cạnh ngang (= cạnh dọc) của hộp, px. Tương ứng 8 cm */
   size?: number;
   /** màu thân và nắp hộp */
   color?: string;
-  /** màu lót bên trong (đáy và mặt dưới nắp) */
+  /** màu lót bên trong (đáy, thành trong và mặt trong nắp) */
   lining?: string;
   /** logo; để trống thì dùng logo mẫu */
   logo?: ReactNode;
+  /** góc nghiêng nhìn từ phía trước-trên (độ), để thấy thành hộp */
+  tilt?: number;
 };
 
 const OPEN_DEG = 100;
+/** Hộp 8 cm, thành 1 cm: tỉ lệ chiều cao thân / cạnh */
+const WALL_RATIO = 1 / 8;
+/** Gờ cạnh của nắp thò xuống, khoảng 0.35 cm */
+const SKIRT_RATIO = 0.35 / 8;
+/** Gờ nằm lùi vào trong một chút so với mép ngoài, khoảng 0.12 cm */
+const SKIRT_INSET_RATIO = 0.12 / 8;
 
 /** Logo mẫu: đĩa trắng và vệt cam cong. Thay bằng logo thật qua prop `logo`. */
 export function DefaultBoxLogo({ color = "#F28C28" }: { color?: string }) {
@@ -35,13 +46,22 @@ export function DefaultBoxLogo({ color = "#F28C28" }: { color?: string }) {
 }
 
 const abs: CSSProperties = { position: "absolute" };
+const ONE_SIDED: CSSProperties = { backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" };
 
-export function InvitationBox({ progress, size = 320, color = "#F28C28", lining = "#FBF7F0", logo }: InvitationBoxProps) {
+export function InvitationBox({
+  progress,
+  size = 320,
+  color = "#E89B5A",
+  lining = "#FFFDF9",
+  logo,
+  tilt = 30,
+}: InvitationBoxProps) {
   const p = Math.min(1, Math.max(0, progress));
   const W = size;
-  const D = size * 0.96; // chiều sâu
-  const H = size * 0.15; // chiều cao thân
-  const R = size * 0.06; // bo góc mềm
+  const D = size; // vuông
+  const H = size * WALL_RATIO; // chiều cao thành
+  const SK = size * SKIRT_RATIO; // chiều sâu gờ nắp
+  const IN = size * SKIRT_INSET_RATIO; // độ lùi gờ vào trong
   const lidDeg = p * OPEN_DEG;
   const logoNode = logo ?? <DefaultBoxLogo color={color} />;
 
@@ -54,21 +74,28 @@ export function InvitationBox({ progress, size = 320, color = "#F28C28", lining 
     transform: "translate(-50%, -50%)",
   };
 
-  // Mặt thân: tâm các mặt nằm ở gốc (0,0,0), đặt bằng translate3d + rotate
-  const wallShade = "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.06))";
-  const wall = (w: number, h: number, t: string): CSSProperties => ({
+  /* Một mặt phẳng đặt tâm tại gốc, sau đó dịch/xoay bằng `t`. */
+  const plane = (w: number, h: number, t: string, bg: string, extra?: CSSProperties): CSSProperties => ({
     ...abs,
     left: -w / 2,
     top: -h / 2,
     width: w,
     height: h,
-    background: `${wallShade}, ${color}`,
+    background: bg,
     transform: t,
-    borderRadius: R * 0.5,
+    ...extra,
   });
 
+  /* Mặt có hai phía: ngoài (màu hộp) và trong (lót). Cùng vị trí, mặt trong lật ngược pháp tuyến. */
+  const panel = (w: number, h: number, t: string, outer: CSSProperties, inner: CSSProperties) => (
+    <>
+      <div style={plane(w, h, t, color, { ...ONE_SIDED, ...outer })} />
+      <div style={plane(w, h, `${t} rotateY(180deg)`, lining, { ...ONE_SIDED, ...inner })} />
+    </>
+  );
+
   return (
-    <div style={{ position: "relative", width: size, height: size, perspective: 1600 }} role="img" aria-label="Hộp quà">
+    <div style={{ position: "relative", width: size, height: size, perspective: 2400 }} role="img" aria-label="Hộp quà">
       {/* bóng đổ dưới hộp, mờ dần khi nắp mở */}
       <div
         aria-hidden
@@ -76,78 +103,78 @@ export function InvitationBox({ progress, size = 320, color = "#F28C28", lining 
           ...abs,
           left: "50%",
           top: "50%",
-          width: W * 1.02,
-          height: D * 1.02,
-          transform: "translate(-50%, -48%) translateZ(-4px)",
-          borderRadius: R,
-          background: "rgba(40,30,20,0.28)",
+          width: W * 1.04,
+          height: D * 1.04,
+          transform: "translate(-50%, -50%) translateZ(-4px)",
+          borderRadius: size * 0.02,
+          background: "rgba(40,30,20,0.3)",
           filter: `blur(${size * 0.04}px)`,
           opacity: 1 - p * 0.5,
         }}
       />
 
-      <div style={{ ...abs, left: "50%", top: "50%", width: 0, height: 0, transformStyle: "preserve-3d" }}>
-        {/* đáy trong: lót trắng + logo */}
+      {/* Gốc hộp: nghiêng để thấy thành, giữ nguyên vị trí tâm */}
+      <div
+        style={{
+          ...abs,
+          left: "50%",
+          top: "50%",
+          width: 0,
+          height: 0,
+          transformStyle: "preserve-3d",
+          transform: `rotateX(${tilt}deg)`,
+        }}
+      >
+        {/* Đáy trong: lót trắng, logo đặt thẳng */}
         <div
-          style={{
-            ...abs,
-            left: -W / 2,
-            top: -D / 2,
-            width: W,
-            height: D,
-            borderRadius: R,
+          style={plane(W, D, "translateZ(0.5px)", lining, {
             background: `radial-gradient(ellipse at 50% 40%, #ffffff, ${lining} 70%)`,
-            transform: "translateZ(0.5px)",
-          }}
+          })}
         >
           <div style={logoBox}>{logoNode}</div>
         </div>
 
-        {/* bốn mặt thân */}
-        <div style={wall(W, H, `translate3d(0, ${D / 2}px, ${H / 2}px) rotateX(90deg)`)} />
-        <div style={wall(W, H, `translate3d(0, ${-D / 2}px, ${H / 2}px) rotateX(90deg)`)} />
-        <div style={wall(D, H, `translate3d(${-W / 2}px, 0, ${H / 2}px) rotateY(90deg) rotateZ(90deg)`)} />
-        <div style={wall(D, H, `translate3d(${W / 2}px, 0, ${H / 2}px) rotateY(90deg) rotateZ(90deg)`)} />
+        {/* Bốn thành ngoài, dày H (1 cm). Mặt ngoài màu hộp, mặt trong màu lót. */}
+        {panel(W, H, `translate3d(0, ${D / 2}px, ${H / 2}px) rotateX(-90deg)`, {}, { background: lining })}
+        {panel(W, H, `translate3d(0, ${-D / 2}px, ${H / 2}px) rotateX(90deg)`, {}, { background: lining })}
+        {panel(D, H, `translate3d(${-W / 2}px, 0, ${H / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: lining })}
+        {panel(D, H, `translate3d(${W / 2}px, 0, ${H / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: lining })}
 
-        {/* nắp: bản lề ở cạnh xa, xoay quanh trục ngang tại mép trên */}
+        {/* Nắp: bản lề ở cạnh xa (y âm), mở 0 → 100° quanh trục ngang. Gốc nắp đặt tại bản lề, ở độ cao H. */}
         <div
           style={{
             ...abs,
-            left: -W / 2,
-            top: -D / 2,
-            width: W,
-            height: D,
-            transformOrigin: "50% 0%",
-            transform: `translateZ(${H}px) rotateX(${lidDeg}deg)`,
+            left: 0,
+            top: 0,
+            width: 0,
+            height: 0,
             transformStyle: "preserve-3d",
+            transform: `translate3d(0, ${-D / 2}px, ${H}px) rotateX(${lidDeg}deg)`,
           }}
         >
-          {/* mặt ngoài nắp: màu hộp + logo thẳng */}
+          {/* Mặt nắp: tâm đặt ở nửa sau nắp (y = +D/2 từ bản lề) */}
+          {panel(
+            W,
+            D,
+            `translate3d(0, ${D / 2}px, 0)`,
+            {},
+            { background: `radial-gradient(ellipse at 50% 60%, #ffffff, ${lining} 75%)` },
+          )}
+          {/* Logo nằm trên mặt ngoài nắp, đặt thẳng */}
           <div
-            style={{
-              ...abs,
-              inset: 0,
-              borderRadius: R,
-              background: `radial-gradient(ellipse at 40% 30%, rgba(255,255,255,0.22), transparent 60%), ${color}`,
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12), inset 0 -6px 14px rgba(0,0,0,0.12)",
-              backfaceVisibility: "hidden",
-              WebkitBackfaceVisibility: "hidden",
-            }}
+            style={plane(W, D, `translate3d(0, ${D / 2}px, 0.5px)`, "transparent", {
+              ...ONE_SIDED,
+              background: "transparent",
+            })}
           >
             <div style={logoBox}>{logoNode}</div>
           </div>
-          {/* mặt trong nắp: lót sáng, xoay sẵn để nhìn đúng chiều khi nắp mở */}
-          <div
-            style={{
-              ...abs,
-              inset: 0,
-              borderRadius: R,
-              background: `radial-gradient(ellipse at 50% 60%, #ffffff, ${lining} 75%)`,
-              transform: "rotateX(180deg)",
-              backfaceVisibility: "hidden",
-              WebkitBackfaceVisibility: "hidden",
-            }}
-          />
+
+          {/* Gờ cạnh nắp thò xuống để gài vào thân khi đóng (4 cạnh) */}
+          {panel(W - 2 * IN, SK, `translate3d(0, ${D - IN}px, ${-SK / 2}px) rotateX(-90deg)`, {}, { background: lining })}
+          {panel(W - 2 * IN, SK, `translate3d(0, ${IN}px, ${-SK / 2}px) rotateX(90deg)`, {}, { background: lining })}
+          {panel(D - 2 * IN, SK, `translate3d(${-(W / 2 - IN)}px, ${D / 2}px, ${-SK / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: lining })}
+          {panel(D - 2 * IN, SK, `translate3d(${W / 2 - IN}px, ${D / 2}px, ${-SK / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: lining })}
         </div>
       </div>
     </div>

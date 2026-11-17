@@ -35,8 +35,10 @@ const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
-// Canvas 3D chiếm 56% chiều rộng màn cảnh, nên đơn vị y của quỹ đạo tính theo chiều cao đó
-const TAG_BOX = 56;
+// Hộp 8 cm chiếm 80% màn cảnh; tag ≈ 3.2 cm = 40% cạnh hộp → 32% màn cảnh (tỉ lệ thật)
+const TAG_BOX = 32;
+// Hộp nghiêng nhìn từ trên-trước để thấy độ dày thành; tag nằm trên đáy nên nghiêng theo, rồi dựng đứng khi bay ra
+const BOX_TILT = 30;
 const toY = (c: number) => (c - (50 + TAG_BOX / 2)) / (TAG_BOX / 100);
 
 const FEATURES = [
@@ -229,6 +231,7 @@ function ScrollBox({ open, size }: { open: MotionValue<number>; size: number }) 
       color={COLOR.brand}
       lining="#FFFDF9"
       logo={<img src={BRAND_LOGO} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+      tilt={BOX_TILT}
     />
   );
 }
@@ -271,12 +274,13 @@ export default function ScrollUnboxingHero() {
   const tagOpacity = useTransform(p, T_SHOW, [0, 1]);
   const tagX = useTransform(p, PATH_T, PATH_X);
   const tagY = useTransform(p, PATH_T, PATH_Y);
-  // 0.9 ≈ vừa vặn nằm trong hộp; 1.3 = đã bay lên gần camera
-  const tagScale = useTransform(p, [T_SHOW[0], T_RISE[0], T_RISE[1], 0.5, 0.62, 0.9, 1], [0.84, 0.9, 1.3, 1.25, 1.25, 1.3, 1.3]);
-  // bóng trên đáy hộp: đậm khi vòng còn nằm sát, nhạt và lệch xa khi vòng đã nâng lên
-  const tagShadowOpacity = useTransform(p, [T_RISE[0], T_RISE[1], T_BOX_OUT[1]], [0.3, 0.2, 0]);
-  const tagShadowY = useTransform(p, T_RISE, ['2%', '9%']);
-  const tagShadowScale = useTransform(p, T_RISE, [0.86, 0.96]);
+  // Tag nằm trên đáy hộp (nghiêng theo hộp), rồi được nâng lên theo trục Z và dựng đứng về phía camera
+  const tagRotX = useTransform(p, [T_SHOW[0], T_RISE[1]], [BOX_TILT, 0]);
+  const tagZ = useTransform(p, [T_RISE[0], T_RISE[1]], [0, 160]);
+  // bóng trên đáy hộp: đậm khi tag còn nằm sát, nhạt và lệch xa khi tag đã nâng lên
+  const tagShadowOpacity = useTransform(p, [T_RISE[0], T_RISE[1], T_BOX_OUT[1]], [0.35, 0.15, 0]);
+  const tagShadowY = useTransform(p, T_RISE, ['4%', '14%']);
+  const tagShadowScale = useTransform(p, T_RISE, [0.9, 0.7]);
 
   /* Nghiêng theo chuột và tốc độ cuộn */
   const mx = useMotionValue(0);
@@ -319,7 +323,7 @@ export default function ScrollUnboxingHero() {
             {/* Tag 3D: nằm giữa hộp, bay ra gần camera rồi đi theo quỹ đạo */}
             <motion.div
               className="absolute left-0 right-0 mx-auto aspect-square"
-              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, scale: tagScale, opacity: tagOpacity }}
+              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, z: tagZ, rotateX: tagRotX, opacity: tagOpacity }}
             >
               <motion.div
                 aria-hidden

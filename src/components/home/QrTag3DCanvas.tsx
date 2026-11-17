@@ -5,14 +5,15 @@
 //  - Mặt trước là logo, mặt sau là mã QR vẽ bằng code; cả hai đặt thẳng đứng (đầu icon hướng lên trên)
 //  - Đĩa tự xoay quanh trục đứng để lật trước/sau theo tiến độ cuộn, kèm dao động nhẹ khi đứng yên
 
-import { useMemo, useRef, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
-const RADIUS = 1;
-const HALF_THICK = 0.03;   // nửa độ dày đĩa (mỏng để không thừa viền dày quanh ảnh)
-const EDGE = 0.012;        // bán kính bo mép
+const RADIUS = 1;          // bán kính đĩa (đường kính 2 đơn vị ~ 3.2 cm thật)
+// Độ dày đĩa theo ảnh thật: khoảng 1/4 đường kính (≈ 0.8 cm trên tag 3.2 cm), mép bo tròn đều.
+const HALF_THICK = 0.25;   // nửa độ dày đĩa
+const EDGE = 0.18;         // bán kính bo mép (lớn để mép tròn như ảnh chụp cạnh)
 // Góc xoay ảnh trên mặt đĩa. 0 = đầu icon hướng lên trên.
 // (Trước đây là Math.PI / 2 nên icon bị nằm ngang, đầu quay sang trái.)
 // Nếu ảnh gốc của bạn vẫn lệch, đổi thành Math.PI / 2, -Math.PI / 2 hoặc Math.PI.
@@ -66,6 +67,48 @@ function seeded(seed: number) {
   };
 }
 
+/* Khe xỏ dây ở mép trên của đĩa, như trên ảnh thật */
+function drawHole(g: CanvasRenderingContext2D, S: number) {
+  const w = S * 0.16;
+  const h = S * 0.045;
+  const x = (S - w) / 2;
+  const y = S * 0.075;
+  g.fillStyle = '#E5E7EB';
+  g.beginPath();
+  g.roundRect(x, y, w, h, h / 2);
+  g.fill();
+}
+
+/* Mặt trước dự phòng: vẽ bằng canvas khi chưa có file /images/qr-tag-only.webp.
+   Vệt cam cong xấp xỉ logo trong ảnh; có ảnh thật thì ảnh đó sẽ thay thế. */
+function makeFrontFallback(): THREE.CanvasTexture {
+  const S = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = S;
+  canvas.height = S;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#FFFFFF';
+  g.fillRect(0, 0, S, S);
+  drawHole(g, S);
+
+  g.strokeStyle = '#EE8A2E';
+  g.lineCap = 'round';
+  g.lineWidth = S * 0.11;
+  g.beginPath();
+  g.arc(S * 0.5, S * 0.56, S * 0.2, Math.PI * 0.95, Math.PI * 1.95);
+  g.stroke();
+  g.beginPath();
+  g.arc(S * 0.38, S * 0.36, S * 0.05, Math.PI * 0.4, Math.PI * 1.9);
+  g.lineWidth = S * 0.05;
+  g.stroke();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.center.set(0.5, 0.5);
+  tex.rotation = FACE_ROT;
+  return tex;
+}
+
 function makeBackTexture(): THREE.CanvasTexture {
   const S = 512;
   const N = 25;
@@ -75,8 +118,9 @@ function makeBackTexture(): THREE.CanvasTexture {
   const g = canvas.getContext('2d')!;
   g.fillStyle = '#FFFFFF';
   g.fillRect(0, 0, S, S);
+  drawHole(g, S);
 
-  const cell = S / (N + 6);
+  const cell = S / (N + 8);
   const off = (S - N * cell) / 2;
   const inFinder = (x: number, y: number) =>
     (x < 7 && y < 7) || (x >= N - 7 && y < 7) || (x < 7 && y >= N - 7);
@@ -101,10 +145,11 @@ function makeBackTexture(): THREE.CanvasTexture {
   drawFinder(N - 7, 0);
   drawFinder(0, N - 7);
 
+  // Nhãn mã của tag, như trên mặt sau ảnh thật
   g.fillStyle = '#6B7280';
-  g.font = 'bold 22px sans-serif';
+  g.font = 'bold 34px sans-serif';
   g.textAlign = 'center';
-  g.fillText('PawLife · Quét để xem hồ sơ', S / 2, S - 12);
+  g.fillText('PL-02516', S / 2, S * 0.9);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -115,12 +160,26 @@ function makeBackTexture(): THREE.CanvasTexture {
 }
 
 function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
-  const frontTex = useMemo(() => {
-    const t = new THREE.TextureLoader().load(FRONT_SRC);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.center.set(0.5, 0.5);
-    t.rotation = FACE_ROT;
-    return t;
+  const [frontTex, setFrontTex] = useState<THREE.Texture>(() => makeFrontFallback());
+  useEffect(() => {
+    let alive = true;
+    new THREE.TextureLoader().load(
+      FRONT_SRC,
+      (t) => {
+        if (!alive) return;
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.center.set(0.5, 0.5);
+        t.rotation = FACE_ROT;
+        setFrontTex(t);
+      },
+      undefined,
+      () => {
+        /* Không có ảnh thật: giữ mặt dự phòng */
+      },
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
   const backTex = useMemo(() => {
     const t = makeBackTexture();
@@ -130,7 +189,7 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
   }, []);
 
   const lens = useMemo(() => makeLensGeometry(), []);
-  const faceGeo = useMemo(() => new THREE.CircleGeometry(RADIUS - EDGE * 0.25, 128), []);
+  const faceGeo = useMemo(() => new THREE.CircleGeometry(RADIUS - EDGE + 0.01, 128), []);
   const bodyMat = useMemo(
     () => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 }),
     [],
