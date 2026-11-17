@@ -1,7 +1,7 @@
 'use client';
 // src/components/home/UnboxingScene.tsx
 // Cảnh 3D duy nhất: hộp và vòng cùng nằm trong một không gian three.js.
-//  - Hộp: đáy có lõm tròn vừa khít vòng, bốn thành 2 mm, nắp có bản lề, khe gập, hai tai ghim, chữ và logo
+//  - Hộp: đáy có lõm tròn vừa khít vòng, bốn thành 2 mm, nắp có bản lề, khe gập, hai cánh gài bên, lưỡi gài nửa tròn, chữ và logo
 //  - Vòng: nằm trong lõm; khi nắp mở thì nhấc lên theo quỹ đạo cong 3D, tiến về camera, xoay theo mốc cuộn
 //  - Mọi chuyển động đọc tiến độ cuộn qua ref và làm mượt bằng damping trong useFrame, không dùng state React theo từng khung hình
 
@@ -26,7 +26,7 @@ const B = 4;               // cạnh hộp
 const H = 0.5;             // chiều cao thành (1 cm)
 const BOARD = 0.1;         // độ dày bìa (2 mm)
 const IN = 0.06;           // lùi của cạnh gấp trước
-const EAR_W = 0.55;        // rộng tai ghim (~1.1 cm)
+const EAR_W = 0.55;        // rộng cánh gài bên (~1.1 cm)
 const S_RING = 0.6875;     // đĩa đường kính 2.75 cm → 1.375 đơn vị
 const RING_REST_Y = HALF_THICK * S_RING + 0.003;
 const ORANGE = '#E89B5A';
@@ -53,7 +53,7 @@ function evalCurve(keys: Key[], t: number): number {
   );
 }
 
-/* Tai ghim: tấm bìa có mũi nhọn ở đáy, dựng trong mặt YZ, dày 2 mm */
+/* Cánh gài bên: tấm bìa có mũi nhọn ở đáy, dựng trong mặt YZ, dày 2 mm */
 const earShape = new THREE.Shape();
 earShape.moveTo(0, 0);
 earShape.lineTo(EAR_W, 0);
@@ -62,6 +62,22 @@ earShape.lineTo(EAR_W / 2, -H);
 earShape.lineTo(0, -H * 0.8);
 earShape.closePath();
 const earGeo = new THREE.ExtrudeGeometry(earShape, { depth: BOARD, bevelEnabled: false });
+
+/* Gờ gài phía trước nắp (nắp gài kiểu gấp origami, theo video): gờ bọc ra ngoài thành trước, có lưỡi gài nửa tròn ở giữa
+   và hai răng gài nhọn hai bên, lồng vào khe gài trên thành khay. Dựng trong mặt XY, dày 2 mm theo trục Z. */
+const SK = 0.18;       // cao gờ (~0.35 cm)
+const TAB_R = 0.2;     // bán kính lưỡi gài nửa tròn (dài ~0.8 cm)
+const tabShape = new THREE.Shape();
+tabShape.moveTo(-TAB_R, 0);
+tabShape.absarc(0, 0, TAB_R, Math.PI, 2 * Math.PI, false);
+tabShape.closePath();
+const tabGeo = new THREE.ExtrudeGeometry(tabShape, { depth: BOARD, bevelEnabled: false });
+const hookShape = new THREE.Shape();
+hookShape.moveTo(0, 0);
+hookShape.lineTo(0.07, 0);
+hookShape.lineTo(0.035, -0.12);
+hookShape.closePath();
+const hookGeo = new THREE.ExtrudeGeometry(hookShape, { depth: BOARD, bevelEnabled: false });
 
 /* Quỹ đạo vòng: X nhân với hệ số theo khung hình (màn hẹp thì thu lại) */
 const RING_X: Key[] = [[0, 0], [0.12, 0], [0.26, 0], [0.36, -1.2], [0.52, -1.4], [0.64, -0.2], [0.72, 1.2], [0.8, 1.4], [0.9, 0], [1, 0]];
@@ -328,6 +344,14 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <mesh position={[0, BOARD / 2, B / 2]} castShadow material={[orangeMat, orangeMat, lidTopMat, liningMat, orangeMat, orangeMat]}>
             <boxGeometry args={[B, BOARD, B]} />
           </mesh>
+          {/* Gờ gài phía trước: bọc ngoài thành trước, có lưỡi gài nửa tròn và hai răng gài nhọn */}
+          <mesh position={[0, -SK / 2, B + BOARD / 2]} castShadow material={orangeMat}>
+            <boxGeometry args={[B - 2 * IN, SK, BOARD]} />
+          </mesh>
+          <mesh position={[0, -SK, B]} castShadow material={orangeMat} geometry={tabGeo} />
+          <mesh position={[-(TAB_R + 0.035), -SK, B]} castShadow material={orangeMat} geometry={hookGeo} />
+          <mesh position={[TAB_R - 0.035, -SK, B]} castShadow material={orangeMat} geometry={hookGeo} />
+
           {/* Khe gập ở bản lề và ở cạnh gấp trước */}
           <mesh position={[0, BOARD + 0.002, 0.04]} rotation={[-Math.PI / 2, 0, 0]} material={creaseMat}>
             <planeGeometry args={[B, 0.05]} />
@@ -339,7 +363,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <mesh position={[0, -0.002, B]} rotation={[Math.PI / 2, 0, 0]} material={windowMat}>
             <circleGeometry args={[0.2, 32, Math.PI, Math.PI]} />
           </mesh>
-          {/* Hai tai ghim: nối vào mép ngoài nắp, gập xuống ngoài thành hộp, mũi nhọn ở đáy */}
+          {/* Hai cánh gài bên: nối vào mép ngoài nắp, gập xuống ngoài thành hộp, mũi nhọn ở đáy */}
           {[-1, 1].map((sg) => (
             <mesh key={sg} position={[sg * (B / 2), 0, sg > 0 ? B - IN : B - IN - EAR_W]} rotation={[0, sg * Math.PI / 2, 0]} castShadow material={orangeMat} geometry={earGeo} />
           ))}
