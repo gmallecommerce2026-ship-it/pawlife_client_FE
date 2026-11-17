@@ -2,7 +2,7 @@
 // src/components/home/QrTag3DCanvas.tsx
 // Viên QR Tag 3D (three.js qua React Three Fiber):
 //  - Đĩa tròn đường kính 2.75 cm, dày 0.475 cm, mép bo, mặt trước hơi lõm như ảnh thật
-//  - Khe xỏ dây ở mép trên là lỗ xuyên thấu thật (cắt khỏi hình học, không phải vẽ giả)
+//  - Khe xỏ dây ở mép trên (dày ~0.1 cm) là lỗ xuyên thấu thật (cắt khỏi hình học, không phải vẽ giả)
 //  - Mặt trước là logo; mặt sau là QR nhỏ kèm nhãn PL-XXXXX bên dưới
 //  - Đĩa xoay quanh trục đứng theo tiến độ cuộn; độ sáng thay đổi theo góc quay để có bóng khi xoay ngang
 
@@ -17,9 +17,12 @@ const RADIUS = RING_RADIUS;   // bán kính đĩa; 1 đơn vị ≈ 1.375 cm
 export const HALF_THICK = 0.173;     // nửa độ dày: 0.475 cm / 2.75 cm × (đường kính 2 đơn vị)
 const EDGE = 0.16;            // bán kính bo mép (gần bằng nửa dày: viền tròn đều)
 const DISH = 0.03;            // độ lõm nhẹ của mặt trước và mặt sau (đơn vị 3D); tiếp tuyến = 0 ở mép
-// Khe ghim: cung tròn đồng tâm với viền, dài ~0.5 cm, rộng ~0.2 cm, nằm ở mép trên
-const HOLE_R_IN = RADIUS - 0.2;
-const HOLE_R_OUT = RADIUS - 0.055;
+// Khe ghim: cung tròn đồng tâm với viền, dài ~0.5 cm (giữ nguyên), bề dày (chiều rộng khe) ~0.1 cm = một nửa trước đây, nằm ở mép trên.
+// Giữ nguyên đường tâm của khe (RADIUS - 0.1275), chỉ thu bề dày từ 0.145 xuống 0.0725
+const HOLE_MID = RADIUS - 0.1275;
+const HOLE_W = 0.0725;
+const HOLE_R_IN = HOLE_MID - HOLE_W / 2;
+const HOLE_R_OUT = HOLE_MID + HOLE_W / 2;
 const HOLE_CENTER = Math.PI / 2;
 const HOLE_HALF_ANG = 0.2;
 // Độ sáng thấp nhất khi mặt quay sang cạnh (0 → 1), tạo bóng khi xoay qua
