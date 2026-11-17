@@ -18,8 +18,8 @@ import {
   spinAt,
 } from './QrTag3DCanvas';
 
-const FRONT_SRC = '/images/qr-tag-only.webp';
-const RING_LOGO = '/images/qr-tag-only.webp';
+const FRONT_SRC = '/images/qr-tag-only.png';
+const RING_LOGO = '/images/qr-tag-only.png';
 
 /* Kích thước thế giới: hộp 8 cm = 4 đơn vị → 1 cm = 0.5 đơn vị */
 const B = 4;               // cạnh hộp
