@@ -118,101 +118,127 @@ function makeLidTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/* Mặt bàn gỗ: nền nâu sáng, vân dài uốn nhẹ theo chiều ngang, vài đốm tối */
-function makeWoodTexture(): THREE.CanvasTexture {
-  const S = 2048;
-  const canvas = document.createElement('canvas');
-  canvas.width = S;
-  canvas.height = S;
-  const g = canvas.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 0, S);
-  grad.addColorStop(0, '#C7A987');
-  grad.addColorStop(0.5, '#BE9C79');
-  grad.addColorStop(1, '#C4A482');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, S, S);
-  let seed = 17;
+const GROUND_Y = -BOARD;
+const GRASS_HALF = 9;
+
+/* Lá cỏ gộp thành một lưới: mỗi lá là dải 4 đoạn, cong nhẹ, tông đậm ở gốc, sáng ở ngọn */
+function makeGrassGeometry(): THREE.BufferGeometry {
+  const N = 12000;
+  const L = 4;
+  const pos: number[] = [];
+  const col: number[] = [];
+  const aH: number[] = [];
+  const aBase: number[] = [];
+  const aYaw: number[] = [];
+  const aLean: number[] = [];
+  const nrm: number[] = [];
+  const idx: number[] = [];
+  let seed = 1234;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  // vân dọc theo trục X: nhiều đường mảnh, độ đậm khác nhau
-  for (let k = 0; k < 900; k++) {
-    const y0 = rnd() * S;
-    const amp = 2 + rnd() * 10;
-    const ph = rnd() * Math.PI * 2;
-    const dark = rnd() < 0.6;
-    g.strokeStyle = dark ? `rgba(92,62,38,${0.05 + rnd() * 0.12})` : `rgba(240,220,190,${0.04 + rnd() * 0.08})`;
-    g.lineWidth = 0.6 + rnd() * 2.2;
-    g.beginPath();
-    for (let x = 0; x <= S; x += 32) {
-      const y = y0 + Math.sin(x / 380 + ph) * amp + Math.sin(x / 90 + ph * 2) * (amp * 0.2);
-      if (x === 0) g.moveTo(x, y);
-      else g.lineTo(x, y);
+  for (let b = 0; b < N; b++) {
+    const bx = (rnd() * 2 - 1) * GRASS_HALF;
+    const bz = (rnd() * 2 - 1) * GRASS_HALF;
+    const yaw = rnd() * Math.PI * 2;
+    const H = 1.3 + rnd() * 1.3;
+    const W = 0.07 + rnd() * 0.03;
+    const bend = (rnd() - 0.5) * 0.9;
+    const lean = 0.7 + rnd() * 0.6;
+    const tone = 0.85 + rnd() * 0.3;
+    const v0 = pos.length / 3;
+    for (let k = 0; k <= L; k++) {
+      const t = k / L;
+      const hw = (W * 0.5) * (1 - t * 0.85);
+      const y = H * t;
+      const z = bend * H * t * t * 0.35;
+      const shade = (0.5 + 0.5 * t) * tone;
+      for (const x of [-hw, hw]) {
+        pos.push(x, y, z);
+        col.push(0.14 * shade, (0.26 + 0.1 * t) * shade, 0.07 * shade);
+        aH.push(t);
+        aBase.push(bx, GROUND_Y, bz);
+        aYaw.push(yaw);
+        aLean.push(lean);
+        nrm.push(0, 1, 0);
+      }
     }
-    g.stroke();
+    for (let k = 0; k < L; k++) {
+      const a = v0 + 2 * k;
+      idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
   }
-  // vài đốm sẫm nhỏ như vết gỗ tự nhiên
-  for (let k = 0; k < 40; k++) {
-    g.fillStyle = `rgba(80,52,30,${0.04 + rnd() * 0.05})`;
-    g.beginPath();
-    g.ellipse(rnd() * S, rnd() * S, 30 + rnd() * 90, 4 + rnd() * 8, 0, 0, Math.PI * 2);
-    g.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2.2, 2.2);
-  return tex;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  g.setAttribute('aH', new THREE.Float32BufferAttribute(aH, 1));
+  g.setAttribute('aBase', new THREE.Float32BufferAttribute(aBase, 3));
+  g.setAttribute('aYaw', new THREE.Float32BufferAttribute(aYaw, 1));
+  g.setAttribute('aLean', new THREE.Float32BufferAttribute(aLean, 1));
+  g.setIndex(idx);
+  return g;
 }
 
-/* Bóng tiếp xúc (contact shadow): quầng tối mềm ngay dưới đáy hộp, làm hộp nổi trên bàn */
-function ContactShadow() {
-  const tex = useMemo(() => {
-    const S = 512;
-    const c = document.createElement('canvas');
-    c.width = S;
-    c.height = S;
-    const g = c.getContext('2d')!;
-    const grad = g.createRadialGradient(S / 2, S / 2, S * 0.2, S / 2, S / 2, S * 0.5);
-    grad.addColorStop(0, 'rgba(40,24,12,0.55)');
-    grad.addColorStop(0.6, 'rgba(40,24,12,0.22)');
-    grad.addColorStop(1, 'rgba(40,24,12,0)');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, S, S);
-    const t = new THREE.CanvasTexture(c);
-    return t;
+/* Cánh đồng cỏ: gió đung đưa; dưới đáy hộp cỏ bị đè dẹt và tủa ra hai bên */
+function GrassField() {
+  const geo = useMemo(() => makeGrassGeometry(), []);
+  const mat = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.uniforms.uBox = { value: new THREE.Vector2(B / 2 - 0.02, B / 2 - 0.02) };
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+attribute float aH;
+attribute vec3 aBase;
+attribute float aYaw;
+attribute float aLean;
+uniform float uTime;
+uniform vec2 uBox;`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `vec3 lp = position;
+float h = aH;
+float ph = aBase.x * 0.55 + aBase.z * 0.8;
+float gust = sin(uTime * 1.1 + ph) * 0.5 + sin(uTime * 2.3 + ph * 1.7) * 0.25 + 0.25;
+float sway = gust * h * h * 0.35 * aLean;
+lp.x += sway;
+lp.z += sway * 0.3;
+float cy = cos(aYaw);
+float sy = sin(aYaw);
+vec3 wp = aBase + vec3(cy * lp.x + sy * lp.z, lp.y, -sy * lp.x + cy * lp.z);
+vec2 q = abs(wp.xz) - uBox;
+float outsideD = length(max(q, vec2(0.0)));
+float inside = step(max(q.x, q.y), 0.0);
+vec2 n = q.x > q.y ? vec2(sign(wp.x), 0.0) : vec2(0.0, sign(wp.z));
+float near = 1.0 - smoothstep(0.0, 1.6, outsideD);
+float flatten = mix(1.0, 0.1, inside);
+float lean = near * (1.0 - inside) * h * h * 1.1;
+wp.y = aBase.y + (wp.y - aBase.y) * flatten;
+wp.xz += n * (lean + inside * h * 0.5);
+vec3 transformed = wp;`,
+        );
+      m.userData.shader = shader;
+    };
+    return m;
   }, []);
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BOARD - 0.0015, 0]}>
-      <planeGeometry args={[B * 1.7, B * 1.7]} />
-      <meshBasicMaterial map={tex} transparent depthWrite={false} />
-    </mesh>
-  );
+  useFrame(({ clock }) => {
+    const sh = mat.userData.shader;
+    if (sh) sh.uniforms.uTime.value = clock.elapsedTime;
+  });
+  return <mesh geometry={geo} material={mat} receiveShadow />;
 }
 
-/* Đồ trang trí nhỏ đặt ở rìa bàn: cốc gốm và viên đá, không chắn hộp */
+/* Đồ trang trí nhỏ đặt ở rìa: viên đá, không chắn hộp */
 function DeskProps() {
-  const cupGeo = useMemo(() => {
-    const pts: THREE.Vector2[] = [];
-    const R = 0.42, Hh = 0.8, wall = 0.04;
-    pts.push(new THREE.Vector2(0, 0));
-    pts.push(new THREE.Vector2(R - 0.08, 0));
-    pts.push(new THREE.Vector2(R, Hh));
-    pts.push(new THREE.Vector2(R - wall, Hh));
-    pts.push(new THREE.Vector2(R - wall - 0.04, 0.06));
-    pts.push(new THREE.Vector2(0, 0.06));
-    return new THREE.LatheGeometry(pts, 64);
-  }, []);
-  const cupMat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ color: '#E8E0D3', roughness: 0.55, clearcoat: 0.25, clearcoatRoughness: 0.35, side: THREE.DoubleSide }),
-    [],
-  );
   const stoneMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#8E8377', roughness: 0.95 }), []);
   return (
     <>
-      <mesh geometry={cupGeo} material={cupMat} position={[4.7, 0, -2.6]} castShadow receiveShadow />
       <mesh material={stoneMat} position={[-4.9, 0.1, 2.8]} scale={[1, 0.5, 0.8]} castShadow receiveShadow>
         <icosahedronGeometry args={[0.32, 2]} />
       </mesh>
@@ -247,8 +273,6 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     };
   }, [gl, scene]);
 
-  const woodTex = useMemo(() => makeWoodTexture(), []);
-  const woodMat = useMemo(() => new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.78, color: '#E8DCCF' }), [woodTex]);
 
   /* Vật liệu hộp */
   const lidTex = useMemo(() => makeLidTexture(), []);
@@ -411,9 +435,12 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
       </group>
 
       {/* Mặt bàn: cùng hệ toạ độ với hộp và vòng, nhận bóng đổ */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BOARD - 0.002, 0]} receiveShadow material={woodMat}>
+      {/* Đất nền dưới cỏ */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y - 0.01, 0]} receiveShadow>
         <planeGeometry args={[80, 80]} />
+        <meshStandardMaterial color="#2E3A1C" roughness={1} />
       </mesh>
+      <GrassField />
       <ContactShadow />
       <DeskProps />
     </>
