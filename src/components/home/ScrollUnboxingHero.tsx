@@ -23,6 +23,7 @@ import {
   type MotionValue,
 } from 'framer-motion';
 import { InvitationBox } from '@/components/invitation/box/InvitationBox';
+import { RING_SCREEN_FRACTION } from './ringConfig';
 
 // Canvas 3D chỉ chạy trên trình duyệt
 const QrTag3DCanvas = dynamic(() => import('./QrTag3DCanvas'), { ssr: false });
@@ -37,6 +38,10 @@ const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#1
 
 // Hộp 8 cm chiếm 80% màn cảnh; tag ≈ 3.2 cm = 40% cạnh hộp → 32% màn cảnh (tỉ lệ thật)
 const TAG_BOX = 32;
+// Hộp chiếm 80% cảnh; lõm trong đáy hộp có đường kính bằng đúng vòng (+3% khe hở)
+const BOX_SCALE = 0.8;
+const RING_IN_BOX = (RING_SCREEN_FRACTION * TAG_BOX) / (BOX_SCALE * 100);
+const RECESS_RATIO = RING_IN_BOX * 1.03;
 // Hộp nghiêng nhìn từ trên-trước để thấy độ dày thành; tag nằm trên đáy nên nghiêng theo, rồi dựng đứng khi bay ra
 const BOX_TILT = 30;
 const toY = (c: number) => (c - (50 + TAG_BOX / 2)) / (TAG_BOX / 100);
@@ -98,12 +103,12 @@ const P_CTA = { x: 0, y: toY(46) };
 
 // Mốc tiến độ của chuỗi mở đầu
 const T_LID: [number, number] = [0.06, 0.24]; // nắp mở 0 → 100°
-const T_SHOW: [number, number] = [0.19, 0.22]; // vòng hiện ra khi nắp đã hở đủ
-const T_RISE: [number, number] = [0.25, 0.4]; // vòng bay ra khỏi hộp, tiến gần camera
+const T_SHOW: [number, number] = [0.16, 0.28]; // vòng hiện dần (mờ → rõ) theo lúc nắp đang mở, không bật đột ngột
+const T_RISE: [number, number] = [0.29, 0.44]; // vòng nhấc lên khỏi lõm, tiến gần camera
 const T_BOX_OUT: [number, number] = [0.44, 0.6]; // hộp mờ dần
 
 type Pt = { t: number; x: number; y: number };
-function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number; y: number }, lift: number, steps = 12): Pt[] {
+function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number; y: number }, lift: number, steps = 40): Pt[] {
   return Array.from({ length: steps + 1 }, (_, i) => {
     const u = i / steps;
     const e = u * u * (3 - 2 * u);
@@ -232,6 +237,7 @@ function ScrollBox({ open, size }: { open: MotionValue<number>; size: number }) 
       lining="#FFFDF9"
       logo={<img src={BRAND_LOGO} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
       tilt={BOX_TILT}
+      recessRatio={RECESS_RATIO}
     />
   );
 }
@@ -248,7 +254,7 @@ export default function ScrollUnboxingHero() {
   useEffect(() => {
     const el = sceneRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setBoxSize(Math.round(e.contentRect.width * 0.8)));
+    const ro = new ResizeObserver(([e]) => setBoxSize(Math.round(e.contentRect.width * BOX_SCALE)));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

@@ -24,6 +24,8 @@ export type InvitationBoxProps = {
   logo?: ReactNode;
   /** góc nghiêng nhìn từ phía trước-trên (độ), để thấy thành hộp */
   tilt?: number;
+  /** đường kính lõm tròn ở giữa đáy, theo tỉ lệ với cạnh hộp (0 = không có lõm) */
+  recessRatio?: number;
 };
 
 const OPEN_DEG = 100;
@@ -55,6 +57,7 @@ export function InvitationBox({
   lining = "#FFFDF9",
   logo,
   tilt = 30,
+  recessRatio = 0,
 }: InvitationBoxProps) {
   const p = Math.min(1, Math.max(0, progress));
   const W = size;
@@ -64,6 +67,8 @@ export function InvitationBox({
   const IN = size * SKIRT_INSET_RATIO; // độ lùi gờ vào trong
   const lidDeg = p * OPEN_DEG;
   const logoNode = logo ?? <DefaultBoxLogo color={color} />;
+  const RD = size * recessRatio; // đường kính lõm
+  const hasRecess = RD > 0;
 
   const logoBox: CSSProperties = {
     ...abs,
@@ -131,7 +136,25 @@ export function InvitationBox({
             background: `radial-gradient(ellipse at 50% 40%, #ffffff, ${lining} 70%)`,
           })}
         >
-          <div style={logoBox}>{logoNode}</div>
+          {hasRecess ? (
+            /* Lõm tròn vừa khít vòng: đáy lõm hơi tối, mép trong có bóng để nhìn như bị đào xuống */
+            <div
+              aria-hidden
+              style={{
+                ...abs,
+                left: "50%",
+                top: "50%",
+                width: RD,
+                height: RD,
+                transform: "translate(-50%, -50%)",
+                borderRadius: "50%",
+                background: "radial-gradient(circle at 50% 42%, #F3EBE1, #E9DDCF 80%)",
+                boxShadow: "inset 0 2px 3px rgba(60,40,20,0.28), inset 0 0 0 1px rgba(60,40,20,0.06)",
+              }}
+            />
+          ) : (
+            <div style={logoBox}>{logoNode}</div>
+          )}
         </div>
 
         {/* Bốn thành ngoài, dày H (1 cm). Mặt ngoài màu hộp, mặt trong màu lót. */}

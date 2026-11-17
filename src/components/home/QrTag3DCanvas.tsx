@@ -8,9 +8,10 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { RING_RADIUS, CAM_Z, CAM_FOV } from './ringConfig';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
-const RADIUS = 1;          // bán kính đĩa (đường kính 2 đơn vị ~ 3.2 cm thật)
+const RADIUS = RING_RADIUS; // bán kính đĩa (đường kính 2 đơn vị ~ 3.2 cm thật)
 // Độ dày đĩa theo ảnh thật: khoảng 1/4 đường kính (≈ 0.8 cm trên tag 3.2 cm), mép bo tròn đều.
 const HALF_THICK = 0.25;   // nửa độ dày đĩa
 const EDGE = 0.18;         // bán kính bo mép (lớn để mép tròn như ảnh chụp cạnh)
@@ -18,6 +19,8 @@ const EDGE = 0.18;         // bán kính bo mép (lớn để mép tròn như �
 // (Trước đây là Math.PI / 2 nên icon bị nằm ngang, đầu quay sang trái.)
 // Nếu ảnh gốc của bạn vẫn lệch, đổi thành Math.PI / 2, -Math.PI / 2 hoặc Math.PI.
 const FACE_ROT = 0;
+// Độ sáng thấp nhất của mặt khi quay sang cạnh (0 → 1), tạo bóng khi xoay qua
+const SHADE_MIN = 0.42;
 
 // Tiến độ cuộn → góc xoay quanh trục đứng (rad). Mỗi nửa vòng là một lần lật.
 const SPIN_T = [0, 0.38, 0.5, 0.62, 0.8, 0.9, 1];
@@ -34,25 +37,24 @@ function spinAt(t: number): number {
   return SPIN_A[SPIN_A.length - 1];
 }
 
-/* Mặt tròn có mép bo: profile quay quanh trục Y tạo thành thân đĩa */
+/* Phần mép bo của đĩa: profile quay quanh trục Y. Chỉ dựng mép (không có mặt phẳng ở giữa),
+   nên pháp tuyến của mặt trước/sau do faceGeo quyết định và luôn phẳng, không bị nội suy cong. */
 function makeLensGeometry(): THREE.LatheGeometry {
   const pts: THREE.Vector2[] = [];
   const R = RADIUS;
   const h = HALF_THICK;
   const e = EDGE;
-  const arcSteps = 10;
-  pts.push(new THREE.Vector2(0, h));
-  // Mép trên: cung tròn từ mặt trên xuống thành bên
+  const arcSteps = 16;
+  // Mép trên: cung từ (R-e, h) xuống (R, h-e)
   for (let i = 0; i <= arcSteps; i++) {
     const a = Math.PI / 2 - (i / arcSteps) * (Math.PI / 2);
     pts.push(new THREE.Vector2(R - e + e * Math.cos(a), h - e + e * Math.sin(a)));
   }
-  // Mép dưới: cung tròn từ thành xuống mặt dưới
+  // Mép dưới: cung từ (R, -(h-e)) xuống (R-e, -h)
   for (let i = 0; i <= arcSteps; i++) {
-    const a = 0 - (i / arcSteps) * (Math.PI / 2);
+    const a = -(i / arcSteps) * (Math.PI / 2);
     pts.push(new THREE.Vector2(R - e + e * Math.cos(a), -(h - e) + e * Math.sin(a)));
   }
-  pts.push(new THREE.Vector2(0, -h));
   return new THREE.LatheGeometry(pts, 160);
 }
 
@@ -191,7 +193,14 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const lens = useMemo(() => makeLensGeometry(), []);
   const faceGeo = useMemo(() => new THREE.CircleGeometry(RADIUS - EDGE + 0.01, 128), []);
   const bodyMat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 }),
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: '#FFFFFF',
+        roughness: 0.3,
+        clearcoat: 1,
+        clearcoatRoughness: 0.1,
+        side: THREE.DoubleSide, // không bao giờ bị cắt mặt khi xoay ngang → hết hiệu ứng xuyên thấu
+      }),
     [],
   );
   const frontMat = useMemo(
@@ -205,9 +214,14 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
   const spin = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
-    if (spin.current) {
-      spin.current.rotation.y = spinAt(progressRef.current) + Math.sin(clock.elapsedTime * 0.9) * 0.1;
-    }
+    if (!spin.current) return;
+    const a = spinAt(progressRef.current) + Math.sin(clock.elapsedTime * 0.9) * 0.1;
+    spin.current.rotation.y = a;
+    // Bóng khi xoay: mặt đang đối diện camera sáng đủ, càng quay sang cạnh thì càng tối dần
+    const shade = SHADE_MIN + (1 - SHADE_MIN) * Math.pow(Math.abs(Math.cos(a)), 0.6);
+    bodyMat.color.setScalar(shade);
+    frontMat.color.setScalar(shade);
+    backMat.color.setScalar(shade);
   });
 
   return (
@@ -224,7 +238,7 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
 export default function QrTag3DCanvas({ progressRef }: { progressRef: MutableRefObject<number> }) {
   return (
     <Canvas
-      camera={{ position: [0, 0, 7], fov: 28 }}
+      camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV }}
       gl={{ antialias: true, alpha: true }}
       flat
       dpr={[1, 2]}
