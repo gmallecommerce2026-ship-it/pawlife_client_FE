@@ -70,9 +70,7 @@ const RING_Z: Key[] = [[0, 0], [0.12, 0], [0.26, 0.2], [0.36, 1.4], [0.52, 2.2],
 // Nghiêng: từ nằm phẳng (-π/2) đến mặt hướng camera
 const RING_RX: Key[] = [[0, -Math.PI / 2], [0.26, -0.9], [0.36, -0.3], [0.5, -0.3], [1, -0.3]];
 // Nắp: 0 → 100°
-const LID: Key[] = [[0, 0], [0.03, 0], [0.2, 1.745], [1, 1.745]];
-// Hộp mờ dần khi vòng đã bay lên
-const BOX_FADE: Key[] = [[0, 1], [0.3, 1], [0.4, 0], [1, 0]];
+const LID: Key[] = [[0, 0], [0.03, 0], [0.2, 1.92], [1, 1.92]];
 // Camera: lùi nhẹ rồi tiến về vòng ở giữa hành trình (dolly)
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
@@ -194,9 +192,12 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = env;
     scene.fog = new THREE.Fog('#C7AD92', 16, 48);
+    gl.toneMapping = THREE.ACESFilmicToneMapping;
+    gl.toneMappingExposure = 1.0;
     return () => {
       scene.environment = null;
       scene.fog = null;
+      gl.toneMapping = THREE.NoToneMapping;
       env.dispose();
       pmrem.dispose();
     };
@@ -214,10 +215,6 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const recessMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#E6D9CA', roughness: 0.9, transparent: true }), []);
   const creaseMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A3E12', transparent: true, opacity: 0.35 }), []);
   const windowMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.2, transparent: true, opacity: 0.6 }), []);
-  const boxMats = useMemo(
-    () => [orangeMat, liningMat, lidTopMat, recessMat, creaseMat, windowMat],
-    [orangeMat, liningMat, lidTopMat, recessMat, creaseMat, windowMat],
-  );
 
   // Chữ và logo của nắp: vẽ logo sau khi ảnh tải xong
   useEffect(() => {
@@ -263,7 +260,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   }, [frontTex, backTex, maxAniso]);
   const enamel = { roughness: 0.5, roughnessMap: grain, bumpMap: grain, bumpScale: 0.7, clearcoat: 0.22, clearcoatRoughness: 0.32, ior: 1.5, specularIntensity: 0.45, envMapIntensity: 0.65 };
   const ringBody = useMemo(() => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', ...enamel, side: THREE.DoubleSide }), [grain]);
-  const ringFront = useMemo(() => new THREE.MeshPhysicalMaterial({ map: frontTex, ...enamel, side: THREE.DoubleSide }), [frontTex, grain]);
+  const ringFront = useMemo(() => new THREE.MeshPhysicalMaterial({ map: frontTex, ...enamel, roughness: 0.6, clearcoat: 0.05, envMapIntensity: 0.3, side: THREE.DoubleSide }), [frontTex, grain]);
   const ringBack = useMemo(() => new THREE.MeshPhysicalMaterial({ map: backTex, ...enamel, side: THREE.DoubleSide }), [backTex, grain]);
 
   // Đặt các thuộc tính thứ tự xoay trước khi dùng
@@ -283,9 +280,6 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     }
     if (lidRef.current) lidRef.current.rotation.x = -evalCurve(LID, t);
 
-    const op = evalCurve(BOX_FADE, t);
-    for (const m of boxMats) m.opacity = m === creaseMat ? 0.35 * op : m === windowMat ? 0.6 * op : op;
-    if (boxRef.current) boxRef.current.visible = op > 0.01;
 
     state.camera.position.set(0, evalCurve(CAM_Y, t), evalCurve(CAM_Z, t));
     state.camera.lookAt(0, 0.4, 0);
@@ -293,11 +287,12 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <hemisphereLight args={['#FFFFFF', '#8A6E58', 0.45]} />
+      <ambientLight intensity={0.22} />
+      <hemisphereLight args={['#FFFFFF', '#8A6E58', 0.2]} />
+      {/* Ánh sáng chiều từ phía trên bên phải: tạo vùng sáng và vùng bóng rõ trên mặt trước */}
       <directionalLight
-        position={[3, 6, 5]}
-        intensity={1.4}
+        position={[5, 7, 3]}
+        intensity={1.9}
         castShadow
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-4}
