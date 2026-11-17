@@ -35,6 +35,19 @@ const S_RING = 0.6875;     // đĩa đường kính 2.75 cm → 1.375 đơn vị
 const RING_REST_Y = HALF_THICK * S_RING + 0.003;
 const ORANGE = '#FFCA81';  // màu hộp (dùng chung cho thân hộp và nền texture nắp)
 
+/* ===== UX trên mobile (thiết bị cảm ứng) — PC giữ nguyên hành vi cũ ===== */
+const DAMP_DESKTOP = 4;        // độ bám tiến độ cuộn trên PC (giữ nguyên)
+const DAMP_TOUCH = 8;          // mobile: hero đã có useSpring làm mượt, damp thêm tay nữa sẽ trễ gấp đôi nên tăng độ bám
+const MAX_DT_TOUCH = 1 / 20;   // mobile: chặn bước thời gian khi khung hình bị khựng, tránh tiến độ nhảy một cú lớn (giật cục)
+const DPR_MAX_TOUCH = 1.5;     // mobile: giới hạn độ phân giải render (máy 3x không cần vẽ 4 lần số điểm ảnh) → bớt tụt khung hình
+const CLOSED_EPS = 0.0003;     // ngưỡng coi là "hộp đã đóng hẳn" (nắp, gờ trước, hai tam giác về đúng chỗ gài)
+
+/* Thiết bị cảm ứng (điện thoại/máy tính bảng, kể cả chế độ giả lập mobile của DevTools) */
+function isTouchDevice(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
 /* Đường cong Catmull-Rom một chiều: trơn, không khựng giữa các mốc */
 type Key = [number, number];
 function evalCurve(keys: Key[], t: number): number {
@@ -115,6 +128,7 @@ const TEETH_N = 28;                     // số răng tam giác quanh lỗ
 const TEETH_DEPTH = 0.19;               // dài răng
 const TEETH_LEAN = 0.02;                // răng chúm nhẹ vào tâm lỗ
 const TEETH_R = R_HOLE - 0.012;         // bán kính chân răng (cách vách lỗ một chút, vẫn rộng hơn tag)
+const TEETH_TIP = 0.35;                 // bề rộng đầu dẹt so với chân răng (0 = tam giác nhọn, 1 = hình chữ nhật); 0.35 → hình thang cân cao, mũi bị cắt phẳng
 const insertShape = new THREE.Shape();
 // y của shape = -z thế giới (do xoay -90° quanh x): mép trước z = INSERT_FRONT ↔ y = -INSERT_FRONT; mép sau z = -INSERT_BACK ↔ y = +INSERT_BACK
 insertShape.moveTo(-INSERT_X, -INSERT_FRONT);
@@ -126,21 +140,28 @@ const holePath = new THREE.Path();
 holePath.absarc(0, 0, R_HOLE, 0, Math.PI * 2, true);
 insertShape.holes.push(holePath);
 const insertGeo = new THREE.ExtrudeGeometry(insertShape, { depth: INSERT_T, bevelEnabled: false, curveSegments: 64 });
-/* Hàng răng tam giác bao quanh lỗ (như ảnh): chân răng ở miệng lỗ, mũi hướng xuống đáy hộp */
+/* Hàng răng hình thang cân bao quanh lỗ: chân răng (cạnh rộng) ở miệng lỗ, đầu dẹt (cạnh hẹp, như mũi nhọn bị cắt ngang) hướng xuống đáy hộp.
+   Mỗi răng gồm 2 tam giác ghép thành một hình thang: A,B là hai đỉnh chân; C,D là hai đỉnh đầu dẹt */
 function makeTeethGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const yTop = INSERT_T - 0.004;
   const yTip = yTop - TEETH_DEPTH;
   const step = (Math.PI * 2) / TEETH_N;
   for (let k = 0; k < TEETH_N; k++) {
-    const a0 = k * step + step * 0.09;
+    const a0 = k * step + step * 0.09;       // góc hai đỉnh chân răng
     const a1 = (k + 1) * step - step * 0.09;
     const am = (a0 + a1) / 2;
-    const rt = TEETH_R - TEETH_LEAN;
+    const half = ((a1 - a0) / 2) * TEETH_TIP; // nửa bề rộng (theo góc) của đầu dẹt, đối xứng quanh trục răng
+    const b0 = am - half;                     // góc hai đỉnh đầu dẹt
+    const b1 = am + half;
+    const rt = TEETH_R - TEETH_LEAN;          // đầu dẹt chúm nhẹ vào tâm lỗ như cũ
+    const ax = TEETH_R * Math.cos(a0), az = TEETH_R * Math.sin(a0);
+    const bx = TEETH_R * Math.cos(a1), bz = TEETH_R * Math.sin(a1);
+    const cx = rt * Math.cos(b1), cz = rt * Math.sin(b1);
+    const dx = rt * Math.cos(b0), dz = rt * Math.sin(b0);
     pos.push(
-      TEETH_R * Math.cos(a0), yTop, TEETH_R * Math.sin(a0),
-      TEETH_R * Math.cos(a1), yTop, TEETH_R * Math.sin(a1),
-      rt * Math.cos(am), yTip, rt * Math.sin(am),
+      ax, yTop, az,  bx, yTop, bz,  cx, yTip, cz, // tam giác A-B-C (cùng chiều quấn với răng cũ)
+      ax, yTop, az,  cx, yTip, cz,  dx, yTip, dz, // tam giác A-C-D
     );
   }
   const g = new THREE.BufferGeometry();
@@ -429,9 +450,10 @@ function DeskProps() {
   );
 }
 
-function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
+function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; touch: boolean }) {
   const { gl, scene } = useThree();
   const smooth = useRef(0);
+  const pullLocked = useRef(false); // đang chặn kéo-để-tải-lại hay không (chỉ đổi khi chuyển trạng thái, không ghi style mỗi khung hình)
   const boxRef = useRef<THREE.Group>(null);
   const lidRef = useRef<THREE.Group>(null);
   const skirtRef = useRef<THREE.Group>(null);
@@ -528,9 +550,48 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     if (ringRef.current) ringRef.current.rotation.order = 'YXZ';
   }, []);
 
+  /* Mobile: chặn trình duyệt "kéo xuống để tải lại trang" (pull-to-refresh) khi hộp CHƯA đóng hẳn.
+     Lỗi cũ: cuộn nhanh về đầu trang thì cuộn đã chạm 0 nhưng nắp còn đang đóng dở (do làm mượt), vuốt thêm một nhịp là trình duyệt reload.
+     Cách làm: overscroll-behavior-y: none trên html/body khi hộp chưa đóng; chỉ trả lại hành vi gốc khi hộp đã đóng hẳn và đứng yên ở đầu trang.
+     Trình duyệt xét thuộc tính này lúc bắt đầu một cử chỉ kéo nên mỗi cử chỉ mới sẽ thấy trạng thái đúng. */
+  const overscrollBackup = useRef<{ html: string; body: string } | null>(null);
+  const setPullLock = (locked: boolean) => {
+    const html = document.documentElement;
+    const body = document.body;
+    if (locked) {
+      if (!overscrollBackup.current) overscrollBackup.current = { html: html.style.overscrollBehaviorY, body: body.style.overscrollBehaviorY };
+      html.style.overscrollBehaviorY = 'none';
+      body.style.overscrollBehaviorY = 'none';
+    } else if (overscrollBackup.current) {
+      html.style.overscrollBehaviorY = overscrollBackup.current.html;
+      body.style.overscrollBehaviorY = overscrollBackup.current.body;
+      overscrollBackup.current = null;
+    }
+  };
+  useEffect(() => {
+    // Rời trang (unmount) thì trả lại nguyên trạng, không để ảnh hưởng các trang khác
+    return () => {
+      pullLocked.current = false;
+      setPullLock(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useFrame((state, delta) => {
     // Làm mượt tiến độ: không giật khi cuộn nhanh hoặc dừng đột ngột
-    const t = (smooth.current = THREE.MathUtils.damp(smooth.current, progressRef.current, 4, delta));
+    // Mobile: bám nhanh hơn (đỡ trễ vì hero đã có spring) và chặn khung hình khựng làm tiến độ nhảy cóc; PC giữ nguyên
+    const dt = touch ? Math.min(delta, MAX_DT_TOUCH) : delta;
+    const target = progressRef.current;
+    let t = (smooth.current = THREE.MathUtils.damp(smooth.current, target, touch ? DAMP_TOUCH : DAMP_DESKTOP, dt));
+    if (touch) {
+      // Về sát đầu trang thì chốt đúng trạng thái đóng (damp chỉ tiến gần chứ không bao giờ chạm 0 → gờ/nắp còn hở một chút)
+      if (target < CLOSED_EPS && t < CLOSED_EPS) t = smooth.current = target;
+      const needLock = target > CLOSED_EPS || t > CLOSED_EPS; // chưa đóng hẳn → khoá kéo-để-tải-lại
+      if (needLock !== pullLocked.current) {
+        pullLocked.current = needLock;
+        setPullLock(needLock);
+      }
+    }
     const xs = Math.min(1, Math.max(0.5, state.viewport.width / 6));
 
     if (ringRef.current) {
@@ -684,15 +745,17 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
 }
 
 export default function UnboxingScene({ progressRef }: { progressRef: MutableRefObject<number> }) {
+  // Component chỉ chạy ở trình duyệt (dynamic ssr:false) nên đọc matchMedia ngay lúc khởi tạo được
+  const [touch] = useState<boolean>(() => isTouchDevice());
   return (
     <Canvas
       shadows
       camera={{ position: [0, 6.5, 12], fov: 30 }}
-      gl={{ antialias: true, alpha: true }}
-      dpr={[1, 2]}
+      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+      dpr={touch ? [1, DPR_MAX_TOUCH] : [1, 2]}
       style={{ background: 'transparent' }}
     >
-      <Scene progressRef={progressRef} />
+      <Scene progressRef={progressRef} touch={touch} />
     </Canvas>
   );
 }
