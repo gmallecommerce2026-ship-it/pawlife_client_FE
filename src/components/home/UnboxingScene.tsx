@@ -24,7 +24,12 @@ const RING_LOGO = '/images/qr-tag-only.webp';
 /* Kích thước thế giới: hộp 8 cm = 4 đơn vị → 1 cm = 0.5 đơn vị */
 const B = 4;               // cạnh hộp
 const H = 0.5;             // chiều cao thành (1 cm)
-const BOARD = 0.1;         // độ dày bìa (2 mm)
+const BOARD = 0.06;        // độ dày đáy hộp (~1.2 mm)
+const WALL = 0.045;        // độ dày thành khay (~0.9 mm)
+const LID_T = 0.05;        // độ dày tấm nắp (~1 mm)
+const PAPER = 0.035;       // độ dày gờ gài và cánh gài (~0.7 mm): giấy mỏng, không còn khối Lego
+const EAR_FLARE = 0.2;     // góc cánh bên nở ra khi bỏ gài (rad, ~11°)
+const SKIRT_FLARE = 0.13;  // góc gờ trước nở ra khi bỏ gài (rad, ~7°)
 const IN = 0.06;           // lùi của cạnh gấp trước
 const EAR_W = 0.55;        // rộng cánh gài bên (~1.1 cm)
 const S_RING = 0.6875;     // đĩa đường kính 2.75 cm → 1.375 đơn vị
@@ -53,15 +58,17 @@ function evalCurve(keys: Key[], t: number): number {
   );
 }
 
-/* Cánh gài bên: tấm bìa có mũi nhọn ở đáy, dựng trong mặt YZ, dày 2 mm */
+/* Cánh gài bên: tấm giấy mỏng, đầu dưới bo tròn, dựng trong mặt YZ. Nối liền vào mép nắp (đỉnh ở LID_T) */
+const EAR_H = H * 0.92;
 const earShape = new THREE.Shape();
-earShape.moveTo(0, 0);
-earShape.lineTo(EAR_W, 0);
-earShape.lineTo(EAR_W, -H * 0.8);
-earShape.lineTo(EAR_W / 2, -H);
-earShape.lineTo(0, -H * 0.8);
+earShape.moveTo(0, LID_T);
+earShape.lineTo(EAR_W, LID_T);
+earShape.lineTo(EAR_W, -EAR_H * 0.55);
+earShape.quadraticCurveTo(EAR_W, -EAR_H, EAR_W * 0.55, -EAR_H);
+earShape.lineTo(EAR_W * 0.2, -EAR_H);
+earShape.quadraticCurveTo(0, -EAR_H, 0, -EAR_H * 0.6);
 earShape.closePath();
-const earGeo = new THREE.ExtrudeGeometry(earShape, { depth: BOARD, bevelEnabled: false });
+const earGeo = new THREE.ExtrudeGeometry(earShape, { depth: PAPER, bevelEnabled: false });
 
 /* Gờ gài phía trước nắp (nắp gài kiểu gấp origami, theo video): gờ bọc ra ngoài thành trước, có lưỡi gài nửa tròn ở giữa
    và hai răng gài nhọn hai bên, lồng vào khe gài trên thành khay. Dựng trong mặt XY, dày 2 mm theo trục Z. */
@@ -71,13 +78,13 @@ const tabShape = new THREE.Shape();
 tabShape.moveTo(-TAB_R, 0);
 tabShape.absarc(0, 0, TAB_R, Math.PI, 2 * Math.PI, false);
 tabShape.closePath();
-const tabGeo = new THREE.ExtrudeGeometry(tabShape, { depth: BOARD, bevelEnabled: false });
+const tabGeo = new THREE.ExtrudeGeometry(tabShape, { depth: PAPER, bevelEnabled: false });
 const hookShape = new THREE.Shape();
 hookShape.moveTo(0, 0);
 hookShape.lineTo(0.07, 0);
 hookShape.lineTo(0.035, -0.12);
 hookShape.closePath();
-const hookGeo = new THREE.ExtrudeGeometry(hookShape, { depth: BOARD, bevelEnabled: false });
+const hookGeo = new THREE.ExtrudeGeometry(hookShape, { depth: PAPER, bevelEnabled: false });
 
 /* Quỹ đạo vòng: X nhân với hệ số theo khung hình (màn hẹp thì thu lại) */
 const RING_X: Key[] = [[0, 0], [0.12, 0], [0.26, 0], [0.36, -1.2], [0.52, -1.4], [0.64, -0.2], [0.72, 1.2], [0.8, 1.4], [0.9, 0], [1, 0]];
@@ -120,15 +127,17 @@ function makeLidTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/* Các mức độ cao tách biệt để không z-fighting (đơn vị thế giới):
-   đáy hộp  GROUND_Y            = -0.100
-   gốc cỏ   SOIL_Y + 0.008      = -0.112
-   bóng     SOIL_Y + 0.006      = -0.114
-   đất nền  SOIL_Y              = -0.120 */
+/* Các mức độ cao (đơn vị thế giới). Hộp nằm đè lên một lớp cỏ dày GRASS_BED:
+   đáy hộp   GROUND_Y                 ≈ -0.060
+   ngọn cỏ sát hộp                    ≈ -0.04 … 0   (cỏ ngả ra ngoài từ dưới mép đáy)
+   bóng      GROUND_Y - 0.012
+   gốc cỏ    SOIL_Y + 0.01            ≈ -0.290
+   đất nền   SOIL_Y                   = -0.300 */
 const GROUND_Y = -BOARD;               // đáy hộp
-const SOIL_Y = GROUND_Y - 0.02;        // đất nền thấp hơn đáy hộp 0.02
-const SHADOW_Y = SOIL_Y + 0.006;       // bóng tiếp xúc nằm trên đất 0.006
-const GRASS_ROOT_Y = SOIL_Y + 0.008;   // gốc cỏ cắm nhẹ vào đất, cách đáy hộp 0.012
+const GRASS_BED = 0.24;                // độ dày lớp cỏ bị hộp đè bên dưới
+const SOIL_Y = GROUND_Y - GRASS_BED;   // đất nền
+const SHADOW_Y = GROUND_Y - 0.012;     // bóng tiếp xúc ngay dưới đáy hộp
+const GRASS_ROOT_Y = SOIL_Y + 0.01;    // gốc cỏ cắm nhẹ vào đất
 const GRASS_HALF = 9;
 
 /* Tinh chỉnh ánh sáng và không khí */
@@ -143,14 +152,15 @@ const RIM_INTENSITY = 1.1;    // đèn viền phía sau, tách hộp khỏi nề
 
 /* Tinh chỉnh cỏ quanh hộp */
 const GRASS_COUNT = 12000;   // tổng số lá
-const GRASS_PAD = 0.35;      // vùng đệm ngoài thành hộp: tuyệt đối không mọc lá
-const GRASS_THIN = 1.2;      // bề rộng dải thưa ngay ngoài vùng đệm
-const GRASS_THIN_KEEP = 0.7; // tỉ lệ giữ lại lá trong dải thưa
-const GRASS_MIN_H = 0.2;     // hệ số chiều cao sát hộp (0.2 → 1.0)
-const GRASS_RAMP = 1.6;      // khoảng cách (ngoài footprint) để cỏ cao lại đủ
-const GRASS_CAP0 = 0.05;     // trần chiều cao ở sát hộp (phía camera)
+const GRASS_PAD = 0.03;      // khe hở nhỏ giữa gốc lá và mép hộp (không lá nào mọc dưới đáy hộp)
+const GRASS_RING_SHARE = 0.3;// tỉ lệ lá dồn vào dải quanh hộp để mép hộp ngập trong cỏ, không lộ đất
+const GRASS_RING_W = 1.4;    // bề rộng dải quanh hộp
+const GRASS_MIN_H = 0.13;    // hệ số chiều cao sát hộp (0.13 → 1.0): ngọn cỏ sát hộp ngang đáy hộp
+const GRASS_RAMP = 1.6;      // khoảng cách (ngoài mép hộp) để cỏ cao lại đủ
+const GRASS_CAP0 = 0.26;     // trần chiều cao ở sát hộp (phía camera) ≈ GRASS_BED + chút
 const GRASS_CAPK = 0.55;     // độ dốc trần theo khoảng cách; phải < dốc tia nhìn tới chân hộp (~0.66)
-const GRASS_BOX = B / 2 + 0.03; // nửa cạnh footprint dùng trong shader
+const GRASS_AO = 0.4;        // độ tối của cỏ sát hộp (ambient occlusion giả), 1 = không tối
+const GRASS_BOX = B / 2 + GRASS_PAD; // nửa cạnh footprint dùng trong shader
 
 /* Lá cỏ gộp thành một lưới: mỗi lá là dải 4 đoạn, cong nhẹ, tông đậm ở gốc, sáng ở ngọn */
 function makeGrassGeometry(): THREE.BufferGeometry {
@@ -170,20 +180,18 @@ function makeGrassGeometry(): THREE.BufferGeometry {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  const EX = B / 2 + GRASS_PAD; // nửa cạnh vùng cấm (footprint + đệm)
+  const EX = B / 2 + GRASS_PAD;          // nửa cạnh vùng cấm: chỉ đúng footprint hộp (+ khe nhỏ)
+  const RING = B / 2 + GRASS_RING_W;     // nửa cạnh dải quanh hộp
   let placed = 0;
   let tries = 0;
   while (placed < N && tries < N * 20) {
     tries++;
-    const bx = (rnd() * 2 - 1) * GRASS_HALF;
-    const bz = (rnd() * 2 - 1) * GRASS_HALF;
-    // Loại trừ: không có lá nào mọc dưới đáy hộp hay trong dải đệm quanh hộp
-    const ex = Math.abs(bx) - EX;
-    const ez = Math.abs(bz) - EX;
-    if (ex < 0 && ez < 0) continue;
-    // Dải thưa ngay ngoài vùng đệm: giảm mật độ để không thành vòng cỏ dày sát hộp
-    const dOut = Math.hypot(Math.max(ex, 0), Math.max(ez, 0));
-    if (dOut < GRASS_THIN && rnd() > GRASS_THIN_KEEP) continue;
+    // một phần lá dồn vào dải quanh hộp để cỏ ngập sát mép; phần còn lại rải đều cả cánh đồng
+    const span = rnd() < GRASS_RING_SHARE ? RING : GRASS_HALF;
+    const bx = (rnd() * 2 - 1) * span;
+    const bz = (rnd() * 2 - 1) * span;
+    // Loại trừ duy nhất: dưới đáy hộp (hộp đè lên cỏ, nên không cần lá ở đó)
+    if (Math.abs(bx) < EX && Math.abs(bz) < EX) continue;
     placed++;
     const yaw = rnd() * Math.PI * 2;
     const H = 1.3 + rnd() * 1.3;
@@ -227,8 +235,8 @@ function makeGrassGeometry(): THREE.BufferGeometry {
   return g;
 }
 
-/* Cánh đồng cỏ: gió đung đưa; cỏ sát hộp ngắn dần và tủa nhẹ ra ngoài.
-   Không còn lá nào dưới đáy hộp (đã loại ở CPU) nên không cần ép dẹt → hết z-fighting. */
+/* Cánh đồng cỏ: gió đung đưa; hộp nằm đè lên cỏ, cỏ sát hộp ngắn dần, tối hơn và ngả ra ngoài từ dưới mép đáy.
+   Không có lá nào dưới đáy hộp (loại ở CPU) nên không ép dẹt → hết z-fighting. */
 function GrassField() {
   const geo = useMemo(() => makeGrassGeometry(), []);
   const mat = useMemo(() => {
@@ -240,6 +248,7 @@ function GrassField() {
       shader.uniforms.uRamp = { value: GRASS_RAMP };
       shader.uniforms.uCap0 = { value: GRASS_CAP0 };
       shader.uniforms.uCapK = { value: GRASS_CAPK };
+      shader.uniforms.uAO = { value: GRASS_AO };
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
@@ -254,7 +263,8 @@ uniform vec2 uBox;
 uniform float uMinH;
 uniform float uRamp;
 uniform float uCap0;
-uniform float uCapK;`,
+uniform float uCapK;
+uniform float uAO;`,
         )
         .replace(
           '#include <begin_vertex>',
@@ -291,13 +301,18 @@ vec3 wp = aBase + vec3(cy * lp.x + sy * lp.z, lp.y, -sy * lp.x + cy * lp.z);
 
 // Tủa nhẹ ra ngoài quanh cạnh hộp (chỉ theo hướng ra xa hộp)
 float near = 1.0 - smoothstep(0.0, 1.6, dB);
-wp.xz += outDir * (near * h * h * 0.3 * aLean);
+wp.xz += outDir * (near * h * h * 0.45 * aLean);
 
 // Chốt an toàn: đỉnh lá nào lọt vào footprint thì đẩy ra mép (không lá nào thò qua thành/đáy)
 vec2 q2 = abs(wp.xz) - uBox;
 float insideW = step(max(q2.x, q2.y), 0.0);
 vec2 n2 = q2.x > q2.y ? vec2(sign(wp.x), 0.0) : vec2(0.0, sign(wp.z));
 wp.xz += n2 * (-max(q2.x, q2.y) + 0.02) * insideW;
+
+// AO giả: cỏ sát hộp tối hơn như bị hộp đè và che sáng
+#ifdef USE_COLOR
+  vColor.rgb *= mix(uAO, 1.0, smoothstep(0.0, 1.4, dB));
+#endif
 
 vec3 transformed = wp;`,
         );
@@ -322,8 +337,8 @@ function ContactShadow() {
     c.height = S;
     const g = c.getContext('2d')!;
     const grad = g.createRadialGradient(S / 2, S / 2, S * 0.2, S / 2, S / 2, S * 0.5);
-    grad.addColorStop(0, 'rgba(20,28,12,0.7)');
-    grad.addColorStop(0.6, 'rgba(20,28,12,0.25)');
+    grad.addColorStop(0, 'rgba(20,28,12,0.5)');
+    grad.addColorStop(0.6, 'rgba(20,28,12,0.18)');
     grad.addColorStop(1, 'rgba(20,28,12,0)');
     g.fillStyle = grad;
     g.fillRect(0, 0, S, S);
@@ -355,6 +370,8 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const smooth = useRef(0);
   const boxRef = useRef<THREE.Group>(null);
   const lidRef = useRef<THREE.Group>(null);
+  const skirtRef = useRef<THREE.Group>(null);
+  const earRefs = useRef<(THREE.Group | null)[]>([null, null]);
   const ringRef = useRef<THREE.Group>(null);
 
   // Phòng studio phản chiếu cho men sứ và bìa
@@ -388,6 +405,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const lidTopMat = useMemo(() => new THREE.MeshStandardMaterial({ map: lidTex, roughness: 0.85, bumpMap: cardGrain, bumpScale: 0.015, transparent: true }), [lidTex, cardGrain]);
   const recessMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#E6D9CA', roughness: 0.9, transparent: true }), []);
   const creaseMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A3E12', transparent: true, opacity: 0.35 }), []);
+  const slitMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3A1C08', roughness: 1, transparent: true, opacity: 0.65, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), []);
   const windowMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.2, transparent: true, opacity: 0.6 }), []);
 
   // Chữ và logo của nắp: vẽ logo sau khi ảnh tải xong
@@ -453,7 +471,15 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
       ringRef.current.rotation.y = spinAt(t) + Math.sin(state.clock.elapsedTime * 0.9) * 0.08;
     }
     if (lidRef.current) {
-      lidRef.current.rotation.x = -evalCurve(LID, t);
+      const lidA = evalCurve(LID, t);
+      lidRef.current.rotation.x = -lidA;
+      // Nở nhẹ khi bỏ gài: giấy bung ra theo góc mở nắp; đóng lại thì ép về sát thành để lưỡi gài vào khe
+      const flare = THREE.MathUtils.smoothstep(lidA, 0.12, 0.7);
+      if (skirtRef.current) skirtRef.current.rotation.x = -SKIRT_FLARE * flare;
+      const earL = earRefs.current[0];
+      const earR = earRefs.current[1];
+      if (earL) earL.rotation.z = -EAR_FLARE * flare;
+      if (earR) earR.rotation.z = EAR_FLARE * flare;
       // gỡ lưỡi gài: nắp trượt nhẹ ra trước rồi mới lật (chặn âm do nội suy Catmull-Rom)
       lidRef.current.position.z = -B / 2 + Math.max(0, evalCurve(LID_PULL, t));
     }
@@ -494,18 +520,28 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <boxGeometry args={[B, BOARD, B]} />
         </mesh>
         {/* Thành khay: mặt ngoài cam, mặt trong kem (theo video). Thứ tự mặt: +x, -x, +y, -y, +z, -z */}
-        <mesh position={[0, H / 2, B / 2 - BOARD / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, orangeMat, liningMat]}>
-          <boxGeometry args={[B, H, BOARD]} />
+        <mesh position={[0, H / 2, B / 2 - WALL / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, orangeMat, liningMat]}>
+          <boxGeometry args={[B, H, WALL]} />
         </mesh>
-        <mesh position={[0, H / 2, -B / 2 + BOARD / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, liningMat, orangeMat]}>
-          <boxGeometry args={[B, H, BOARD]} />
+        <mesh position={[0, H / 2, -B / 2 + WALL / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, liningMat, orangeMat]}>
+          <boxGeometry args={[B, H, WALL]} />
         </mesh>
-        <mesh position={[-(B / 2 - BOARD / 2), H / 2, 0]} castShadow material={[liningMat, orangeMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
-          <boxGeometry args={[BOARD, H, B - 2 * BOARD]} />
+        <mesh position={[-(B / 2 - WALL / 2), H / 2, 0]} castShadow material={[liningMat, orangeMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
+          <boxGeometry args={[WALL, H, B - 2 * WALL]} />
         </mesh>
-        <mesh position={[B / 2 - BOARD / 2, H / 2, 0]} castShadow material={[orangeMat, liningMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
-          <boxGeometry args={[BOARD, H, B - 2 * BOARD]} />
+        <mesh position={[B / 2 - WALL / 2, H / 2, 0]} castShadow material={[orangeMat, liningMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
+          <boxGeometry args={[WALL, H, B - 2 * WALL]} />
         </mesh>
+        {/* Khe gài trên thành hộp: khe nửa tròn ở thành trước cho lưỡi gài, hai khe ngang ở thành bên cho cánh gài */}
+        <mesh position={[0, H - SK, B / 2 + 0.002]} material={slitMat}>
+          <ringGeometry args={[TAB_R * 0.94, TAB_R + 0.014, 32, 1, Math.PI, Math.PI]} />
+        </mesh>
+        {[-1, 1].map((sg) => (
+          <mesh key={sg} position={[sg * (B / 2 + 0.002), H - EAR_H + 0.09, B / 2 - IN - EAR_W / 2]} rotation={[0, sg * Math.PI / 2, 0]} material={slitMat}>
+            <planeGeometry args={[0.26, 0.028]} />
+          </mesh>
+        ))}
+
         {/* Lõm tròn vừa khít vòng */}
         <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} material={recessMat} receiveShadow>
           <circleGeometry args={[S_RING * 1.04, 64]} />
@@ -513,31 +549,35 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
 
         {/* Nắp: bản lề ở cạnh sau, mở 0 → 100° */}
         <group ref={lidRef} position={[0, H, -B / 2]}>
-          <mesh position={[0, BOARD / 2, B / 2]} castShadow material={[orangeMat, orangeMat, lidTopMat, liningMat, orangeMat, orangeMat]}>
-            <boxGeometry args={[B, BOARD, B]} />
+          <mesh position={[0, LID_T / 2, B / 2]} castShadow material={[orangeMat, orangeMat, lidTopMat, liningMat, orangeMat, orangeMat]}>
+            <boxGeometry args={[B, LID_T, B]} />
           </mesh>
-          {/* Gờ gài phía trước: bọc ngoài thành trước, có lưỡi gài nửa tròn và hai răng gài nhọn */}
-          <mesh position={[0, -SK / 2, B + BOARD / 2]} castShadow material={orangeMat}>
-            <boxGeometry args={[B - 2 * IN, SK, BOARD]} />
-          </mesh>
-          <mesh position={[0, -SK, B]} castShadow material={orangeMat} geometry={tabGeo} />
-          <mesh position={[-(TAB_R + 0.035), -SK, B]} castShadow material={orangeMat} geometry={hookGeo} />
-          <mesh position={[TAB_R - 0.035, -SK, B]} castShadow material={orangeMat} geometry={hookGeo} />
+          {/* Gờ gài phía trước: giấy mỏng gập xuống ngoài thành trước, có lưỡi gài nửa tròn và hai răng gài; nở nhẹ ra khi bỏ gài */}
+          <group ref={skirtRef} position={[0, 0, B]}>
+            <mesh position={[0, (LID_T - SK) / 2, PAPER / 2]} castShadow material={orangeMat}>
+              <boxGeometry args={[B - 2 * IN, SK + LID_T, PAPER]} />
+            </mesh>
+            <mesh position={[0, -SK, 0]} castShadow material={orangeMat} geometry={tabGeo} />
+            <mesh position={[-(TAB_R + 0.035), -SK, 0]} castShadow material={orangeMat} geometry={hookGeo} />
+            <mesh position={[TAB_R - 0.035, -SK, 0]} castShadow material={orangeMat} geometry={hookGeo} />
+          </group>
 
           {/* Khe gập ở bản lề và ở cạnh gấp trước */}
-          <mesh position={[0, BOARD + 0.002, 0.04]} rotation={[-Math.PI / 2, 0, 0]} material={creaseMat}>
+          <mesh position={[0, LID_T + 0.002, 0.04]} rotation={[-Math.PI / 2, 0, 0]} material={creaseMat}>
             <planeGeometry args={[B, 0.05]} />
           </mesh>
-          <mesh position={[0, BOARD + 0.002, B - IN]} rotation={[-Math.PI / 2, 0, 0]} material={creaseMat}>
+          <mesh position={[0, LID_T + 0.002, B - IN]} rotation={[-Math.PI / 2, 0, 0]} material={creaseMat}>
             <planeGeometry args={[B, 0.05]} />
           </mesh>
           {/* Lỗ nửa tròn ở mặt trong, giữa cạnh gấp trước */}
           <mesh position={[0, -0.002, B]} rotation={[Math.PI / 2, 0, 0]} material={windowMat}>
             <circleGeometry args={[0.2, 32, Math.PI, Math.PI]} />
           </mesh>
-          {/* Hai cánh gài bên: nối vào mép ngoài nắp, gập xuống ngoài thành hộp, mũi nhọn ở đáy */}
-          {[-1, 1].map((sg) => (
-            <mesh key={sg} position={[sg * (B / 2), 0, sg > 0 ? B - IN : B - IN - EAR_W]} rotation={[0, sg * Math.PI / 2, 0]} castShadow material={orangeMat} geometry={earGeo} />
+          {/* Hai cánh gài bên: giấy mỏng bo tròn, ôm sát ngoài thành hộp khi đóng, nở nhẹ ra ngoài khi mở (xoay quanh mép nắp) */}
+          {[-1, 1].map((sg, i) => (
+            <group key={sg} ref={(g) => { earRefs.current[i] = g; }} position={[sg * (B / 2), 0, 0]}>
+              <mesh position={[0, 0, sg > 0 ? B - IN : B - IN - EAR_W]} rotation={[0, sg * Math.PI / 2, 0]} castShadow material={orangeMat} geometry={earGeo} />
+            </group>
           ))}
         </group>
       </group>
@@ -552,6 +592,11 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SOIL_Y, 0]} receiveShadow>
         <planeGeometry args={[80, 80]} />
         <meshStandardMaterial color="#3B4A22" roughness={1} polygonOffset polygonOffsetFactor={1} polygonOffsetUnits={1} />
+      </mesh>
+      {/* Lớp cỏ bị đè dưới hộp: khối tối lấp khoảng hở giữa đất và đáy hộp, nhìn như cỏ bị ép dưới hộp */}
+      <mesh position={[0, SOIL_Y + (GRASS_BED - 0.01) / 2, 0]}>
+        <boxGeometry args={[B - 0.04, GRASS_BED - 0.01, B - 0.04]} />
+        <meshStandardMaterial color="#1F2B12" roughness={1} />
       </mesh>
       <GrassField />
       <ContactShadow />
