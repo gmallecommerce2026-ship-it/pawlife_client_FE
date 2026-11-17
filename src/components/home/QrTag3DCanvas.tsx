@@ -14,7 +14,7 @@ import { RING_RADIUS, CAM_Z, CAM_FOV, CANVAS_SCALE } from './ringConfig';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
 const RADIUS = RING_RADIUS;   // bán kính đĩa; 1 đơn vị ≈ 1.375 cm
-const HALF_THICK = 0.173;     // nửa độ dày: 0.475 cm / 2.75 cm × (đường kính 2 đơn vị)
+export const HALF_THICK = 0.173;     // nửa độ dày: 0.475 cm / 2.75 cm × (đường kính 2 đơn vị)
 const EDGE = 0.16;            // bán kính bo mép (gần bằng nửa dày: viền tròn đều)
 const DISH = 0.03;            // độ lõm nhẹ của mặt trước và mặt sau (đơn vị 3D); tiếp tuyến = 0 ở mép
 // Khe ghim: cung tròn đồng tâm với viền, dài ~0.5 cm, rộng ~0.2 cm, nằm ở mép trên
@@ -32,7 +32,7 @@ const NA = 16;  // số mẫu của mỗi cung bo mép
 // 0.34 → 0.44: lật để lộ mặt sau khi bay ra; 0.76: lật lại để lộ mặt sau ở chương "Mặt sau"; 1: về mặt trước.
 const SPIN_T = [0, 0.34, 0.44, 0.52, 0.76, 1];
 const SPIN_A = [0, 0, Math.PI, 2 * Math.PI, 3 * Math.PI, 4 * Math.PI];
-function spinAt(t: number): number {
+export function spinAt(t: number): number {
   if (t <= SPIN_T[0]) return SPIN_A[0];
   for (let i = 0; i < SPIN_T.length - 1; i++) {
     if (t <= SPIN_T[i + 1]) {
@@ -58,7 +58,7 @@ type ProfilePt = { r: number; z: number; nr: number; nz: number; g: number };
 /* Đĩa một khối: mặt trước (g=0), thân gồm mép bo (g=1), mặt sau (g=2).
    Dựng bằng lưới cực quanh trục Z; các ô nằm trong khe xỏ dây bị bỏ đi nên lỗ xuyên thấu thật.
    Pháp tuyến tính sẵn theo hình học: mặt lõm nhẹ, mép bo tròn đều, không bị nội suy cong. */
-function makeRingGeometry(): THREE.BufferGeometry {
+export function makeRingGeometry(): THREE.BufferGeometry {
   const R = RADIUS;
   const h = HALF_THICK;
   const e = EDGE;
@@ -200,7 +200,7 @@ function seeded(seed: number) {
 }
 
 /* Mặt trước dự phòng: vẽ bằng canvas khi chưa có file /images/qr-tag-only.webp. */
-function makeFrontFallback(): THREE.CanvasTexture {
+export function makeFrontFallback(): THREE.CanvasTexture {
   const S = 1024;
   const canvas = document.createElement('canvas');
   canvas.width = S;
@@ -227,7 +227,7 @@ function makeFrontFallback(): THREE.CanvasTexture {
 
 /* Mặt sau: QR nhỏ ở giữa, nhãn PL-02516 bên dưới */
 /* Hạt men: nhiễu mịn dùng làm bản đồ độ nhám và bump, tạo vi chi tiết bề mặt sứ */
-function makeGrainTexture(): THREE.CanvasTexture {
+export function makeGrainTexture(): THREE.CanvasTexture {
   const S = 512;
   const canvas = document.createElement('canvas');
   canvas.width = S;
@@ -249,7 +249,7 @@ function makeGrainTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function makeBackTexture(): THREE.CanvasTexture {
+export function makeBackTexture(): THREE.CanvasTexture {
   const S = 1024;
   const N = 25;
   const canvas = document.createElement('canvas');
