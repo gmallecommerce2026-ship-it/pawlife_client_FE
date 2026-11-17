@@ -2,7 +2,7 @@
 // src/components/home/QrTag3DCanvas.tsx
 // Viên QR Tag 3D dựng bằng code (three.js qua React Three Fiber):
 //  - Đĩa tròn mép bo (dạng lens), nhìn ngang vẫn tròn
-//  - Mặt trước là logo, mặt sau là mã QR vẽ bằng code; cả hai xoay 90° ngược chiều kim đồng hồ
+//  - Mặt trước là logo, mặt sau là mã QR vẽ bằng code; cả hai đặt thẳng đứng (đầu icon hướng lên trên)
 //  - Đĩa tự xoay quanh trục đứng để lật trước/sau theo tiến độ cuộn, kèm dao động nhẹ khi đứng yên
 
 import { useMemo, useRef, type MutableRefObject } from 'react';
@@ -11,9 +11,12 @@ import * as THREE from 'three';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
 const RADIUS = 1;
-const HALF_THICK = 0.07;   // nửa độ dày đĩa
-const EDGE = 0.06;         // bán kính bo mép
-const FACE_ROT = Math.PI / 2; // xoay mặt 90° ngược chiều kim đồng hồ
+const HALF_THICK = 0.03;   // nửa độ dày đĩa (mỏng để không thừa viền dày quanh ảnh)
+const EDGE = 0.012;        // bán kính bo mép
+// Góc xoay ảnh trên mặt đĩa. 0 = đầu icon hướng lên trên.
+// (Trước đây là Math.PI / 2 nên icon bị nằm ngang, đầu quay sang trái.)
+// Nếu ảnh gốc của bạn vẫn lệch, đổi thành Math.PI / 2, -Math.PI / 2 hoặc Math.PI.
+const FACE_ROT = 0;
 
 // Tiến độ cuộn → góc xoay quanh trục đứng (rad). Mỗi nửa vòng là một lần lật.
 const SPIN_T = [0, 0.38, 0.5, 0.62, 0.8, 0.9, 1];
@@ -127,7 +130,7 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
   }, []);
 
   const lens = useMemo(() => makeLensGeometry(), []);
-  const faceGeo = useMemo(() => new THREE.CircleGeometry(RADIUS * 0.995, 128), []);
+  const faceGeo = useMemo(() => new THREE.CircleGeometry(RADIUS - EDGE * 0.25, 128), []);
   const bodyMat = useMemo(
     () => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 }),
     [],
