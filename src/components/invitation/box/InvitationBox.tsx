@@ -26,6 +26,10 @@ export type InvitationBoxProps = {
   tilt?: number;
   /** đường kính lõm tròn ở giữa đáy, theo tỉ lệ với cạnh hộp (0 = không có lõm) */
   recessRatio?: number;
+  /** chữ in trên mặt nắp: góc trên trái, góc trên phải, dòng mô tả dưới logo */
+  brandName?: string;
+  productName?: string;
+  tagline?: string;
 };
 
 const OPEN_DEG = 100;
@@ -58,6 +62,9 @@ export function InvitationBox({
   logo,
   tilt = 30,
   recessRatio = 0,
+  brandName = "PawLife",
+  productName = "Pet QR Tag",
+  tagline = "The QR tag dành cho thú cưng",
 }: InvitationBoxProps) {
   const p = Math.min(1, Math.max(0, progress));
   const W = size;
@@ -73,6 +80,23 @@ export function InvitationBox({
   const TAB_W = size * 0.1;
   const TAB_H = size * 0.05;
   const HOOK = size * 0.03;
+  /* Độ dày bìa 2 mm (hộp 8 cm), khe gập, và hai tai ghim ở hai cạnh nắp */
+  const T = size * 0.025;
+  const CREASE = Math.max(1.5, T * 0.5);
+  const EAR_W = size * 0.12;
+  const EAR_OUT = size * 0.012;
+  const creaseBg = "linear-gradient(to bottom, rgba(120,55,15,0.5), rgba(255,255,255,0.35))";
+  const faceText = (x: CSSProperties): CSSProperties => ({ ...abs, color: "#FFFFFF", fontWeight: 700, lineHeight: 1, whiteSpace: "nowrap", ...x });
+  /* Mặt ngoài nắp: chữ, khe gập ở bản lề và ở cạnh gấp phía trước */
+  const lidFace = (
+    <>
+      <div aria-hidden style={{ ...abs, left: 0, top: 0, width: W, height: CREASE, background: creaseBg }} />
+      <div aria-hidden style={{ ...abs, left: 0, top: D - IN, width: W, height: CREASE, background: creaseBg }} />
+      <div style={faceText({ left: size * 0.06, top: size * 0.05, fontSize: size * 0.05 })}>{brandName}</div>
+      <div style={faceText({ right: size * 0.06, top: size * 0.055, fontSize: size * 0.04 })}>{productName}</div>
+      <div style={faceText({ left: 0, right: 0, bottom: size * 0.05, textAlign: "center", fontSize: size * 0.026, fontWeight: 500, opacity: 0.9 })}>{tagline}</div>
+    </>
+  );
   const skirtTab = (
     <>
       <div
@@ -208,6 +232,12 @@ export function InvitationBox({
         {panel(D, H, `translate3d(${-W / 2}px, 0, ${H / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: color })}
         {panel(D, H, `translate3d(${W / 2}px, 0, ${H / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: color })}
 
+        {/* Viền đỉnh thành hộp: bìa dày 2 mm, cùng màu cam */}
+        <div style={plane(W, T, `translate3d(0, ${D / 2 - T / 2}px, ${H + 0.5}px)`, color, {})} />
+        <div style={plane(W, T, `translate3d(0, ${-D / 2 + T / 2}px, ${H + 0.5}px)`, color, {})} />
+        <div style={plane(T, D, `translate3d(${-W / 2 + T / 2}px, 0, ${H + 0.5}px)`, color, {})} />
+        <div style={plane(T, D, `translate3d(${W / 2 - T / 2}px, 0, ${H + 0.5}px)`, color, {})} />
+
         {/* Nắp: bản lề ở cạnh xa (y âm), mở 0 → 100° quanh trục ngang. Gốc nắp đặt tại bản lề, ở độ cao H. */}
         <div
           style={{
@@ -227,6 +257,7 @@ export function InvitationBox({
             `translate3d(0, ${D / 2}px, 0)`,
             {},
             { background: `radial-gradient(ellipse at 50% 60%, #ffffff, ${lining} 75%)` },
+            lidFace,
           )}
           {/* Logo nằm trên mặt ngoài nắp, đặt thẳng */}
           <div
@@ -237,6 +268,14 @@ export function InvitationBox({
           >
             <div style={logoBox}>{logoNode}</div>
           </div>
+
+          {/* Mép ngoài nắp dày 2 mm */}
+          {panel(W, T, `translate3d(0, ${D}px, ${-T / 2}px) rotateX(-90deg)`, {}, { background: lining })}
+          {panel(D, T, `translate3d(${-W / 2}px, ${D / 2}px, ${-T / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: color })}
+          {panel(D, T, `translate3d(${W / 2}px, ${D / 2}px, ${-T / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: color })}
+          {/* Hai tai ghim ở hai cạnh nắp, bám ra ngoài thành hộp và chạy xuống theo chiều cao hộp */}
+          {panel(EAR_W, H, `translate3d(${-(W / 2 + EAR_OUT)}px, ${D - EAR_W / 2}px, ${-H / 2}px) rotateY(-90deg) rotateZ(90deg)`, {}, { background: color })}
+          {panel(EAR_W, H, `translate3d(${W / 2 + EAR_OUT}px, ${D - EAR_W / 2}px, ${-H / 2}px) rotateY(90deg) rotateZ(90deg)`, {}, { background: color })}
 
           {/* Gờ cạnh nắp thò xuống để gài vào thân khi đóng (4 cạnh) */}
           {panel(W - 2 * IN, SK, `translate3d(0, ${D - IN}px, ${-SK / 2}px) rotateX(-90deg)`, {}, { background: lining }, skirtTab)}

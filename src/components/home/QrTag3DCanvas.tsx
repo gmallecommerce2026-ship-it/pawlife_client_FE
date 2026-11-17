@@ -26,12 +26,20 @@ const NS = 256; // số mẫu quanh đĩa
 const NC = 40;  // số mẫu từ tâm ra mép (mỗi mặt)
 const NA = 16;  // số mẫu của mỗi cung bo mép
 
-// Xoay quanh trục đứng: 0 → 4π (hai vòng), chuyển động êm (sine ease-in-out) để không khựng ở đầu/cuối
-const SPIN_START = 0.36;
-const SPIN_END = 1;
+// Xoay quanh trục đứng theo mốc cuộn: đồng bộ với các chương trên trang.
+// 0.34 → 0.44: lật để lộ mặt sau khi bay ra; 0.76: lật lại để lộ mặt sau ở chương "Mặt sau"; 1: về mặt trước.
+const SPIN_T = [0, 0.34, 0.44, 0.52, 0.76, 1];
+const SPIN_A = [0, 0, Math.PI, 2 * Math.PI, 3 * Math.PI, 4 * Math.PI];
 function spinAt(t: number): number {
-  const u = Math.min(1, Math.max(0, (t - SPIN_START) / (SPIN_END - SPIN_START)));
-  return 4 * Math.PI * (0.5 - 0.5 * Math.cos(Math.PI * u));
+  if (t <= SPIN_T[0]) return SPIN_A[0];
+  for (let i = 0; i < SPIN_T.length - 1; i++) {
+    if (t <= SPIN_T[i + 1]) {
+      const u = (t - SPIN_T[i]) / (SPIN_T[i + 1] - SPIN_T[i]);
+      const e = 0.5 - 0.5 * Math.cos(Math.PI * u); // ease-in-out êm
+      return SPIN_A[i] + (SPIN_A[i + 1] - SPIN_A[i]) * e;
+    }
+  }
+  return SPIN_A[SPIN_A.length - 1];
 }
 
 /* Khe xỏ dây: kiểm tra điểm (x, y) có nằm trong viên nang không */
@@ -109,6 +117,8 @@ function makeRingGeometry(): THREE.BufferGeometry {
   const N = (k: number) => new THREE.Vector3(nor[3 * k], nor[3 * k + 1], nor[3 * k + 2]);
   const groups: number[][] = [[], [], []];
   const idx = (j: number, i: number) => j * NS + (i % NS);
+  const zTop = (r: number) =>
+    r < rE ? h - DISH * (1 - (r / rE) ** 2) : h - e + e * Math.sqrt(Math.max(0, 1 - ((r - rE) / e) ** 2));
   const tri = (q: number[], a: number, b: number, c: number) => {
     // đảm bảo thứ tự đỉnh cùng chiều với pháp tuyến
     const fn = new THREE.Vector3().subVectors(V(b), V(a)).cross(new THREE.Vector3().subVectors(V(c), V(a)));
@@ -118,6 +128,33 @@ function makeRingGeometry(): THREE.BufferGeometry {
       q.push(a, b, c);
     }
   };
+
+  // Vách trong của khe: viên nang, đi từ mặt trước xuống mặt sau
+  const NH = 72;
+  const yA = HOLE_Y - (HOLE_LEN / 2 - HOLE_HALF_W);
+  const yB = HOLE_Y + (HOLE_LEN / 2 - HOLE_HALF_W);
+  const wallBase = pos.length / 3;
+  for (let k = 0; k < NH; k++) {
+    const phi = (2 * Math.PI * k) / NH;
+    const cs = Math.cos(phi);
+    const sn = Math.sin(phi);
+    const x = HOLE_HALF_W * cs;
+    const y = (sn > 0 ? yB : yA) + HOLE_HALF_W * sn;
+    const zt = zTop(Math.hypot(x, y));
+    // pháp tuyến hướng vào trong lỗ
+    pos.push(x, y, zt, x, y, -zt);
+    nor.push(-cs, -sn, 0, -cs, -sn, 0);
+    uv.push(0, 0, 0, 0);
+  }
+  for (let k = 0; k < NH; k++) {
+    const k2 = (k + 1) % NH;
+    const aT = wallBase + 2 * k;
+    const aB = aT + 1;
+    const bT = wallBase + 2 * k2;
+    const bB = bT + 1;
+    tri(groups[1], aT, aB, bB);
+    tri(groups[1], aT, bB, bT);
+  }
 
   for (let j = 0; j < M - 1; j++) {
     const g = prof[j].g === prof[j + 1].g ? prof[j].g : 1;
@@ -319,10 +356,10 @@ export default function QrTag3DCanvas({ progressRef }: { progressRef: MutableRef
       dpr={[1, 2]}
       style={{ background: 'transparent' }}
     >
-      <ambientLight intensity={1.5} />
-      <hemisphereLight args={['#FFFFFF', '#F3EDE6', 1.1]} />
-      <directionalLight position={[3, 4, 6]} intensity={1.8} />
-      <directionalLight position={[-4, -2, 4]} intensity={0.6} color="#FFF4EA" />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight args={['#FFFFFF', '#8A6E58', 0.7]} />
+      <directionalLight position={[3, 5, 6]} intensity={2.6} />
+      <directionalLight position={[-5, -2, 2]} intensity={0.35} color="#FFF4EA" />
       <Tag progressRef={progressRef} />
     </Canvas>
   );

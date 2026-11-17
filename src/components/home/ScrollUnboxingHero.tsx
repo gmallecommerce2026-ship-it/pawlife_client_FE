@@ -1,11 +1,11 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 // src/components/home/ScrollUnboxingHero.tsx
-// Hero cuộn theo tiến độ:
-//  - Hộp 3D nhìn từ trên xuống (InvitationBox) mở nắp, viên QR Tag 3D nằm giữa hộp
-//  - Tag bay ra khỏi hộp, tiến gần camera ở giữa banner, rồi mới bay cong sang trái/phải đan xen với chữ, đĩa tự lật theo tiến độ cuộn
-//  - Chữ hiện bằng mặt nạ kéo, mỗi bên một hướng
-//  - Nghiêng theo chuột (máy tính) và tốc độ cuộn; chỉ báo tiến độ có số chương
+// Hero cuộn điện ảnh, 6 chương, mỗi chương một khoảng cuộn riêng (không chồng lên nhau):
+//  - Hộp 3D mở nắp, vòng nằm sẵn trong lõm đáy hộp
+//  - Vòng nhấc khỏi lõm, bay theo quỹ đạo cong (Catmull-Rom) với chiều sâu, lật mặt theo mốc cuộn
+//  - Chữ chỉ hiện khi vòng đã ở phía đối diện, không bao giờ đè lên vòng
+//  - Camera "dolly" nhẹ và bóng sáng phía sau vòng theo độ gần của vòng
 
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import dynamic from 'next/dynamic';
@@ -36,15 +36,20 @@ const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
-// Hộp 8 cm chiếm 80% màn cảnh; tag ≈ 3.2 cm = 40% cạnh hộp → 32% màn cảnh (tỉ lệ thật)
-const TAG_BOX = 48; // ring 2.75 cm = 34% cạnh hộp 8 cm
-// Hộp chiếm 80% cảnh; lõm trong đáy hộp có đường kính bằng đúng vòng (+3% khe hở)
+// Hộp 8 cm chiếm 80% cảnh; vòng (tag) chiếm 48% cảnh; lõm đáy hộp khớp đúng đường kính vòng
 const BOX_SCALE = 0.8;
+const TAG_BOX = 48;
 const RING_IN_BOX = (RING_SCREEN_FRACTION * TAG_BOX) / (BOX_SCALE * 100);
 const RECESS_RATIO = RING_IN_BOX * 1.03;
-// Hộp nghiêng nhìn từ trên-trước để thấy độ dày thành; tag nằm trên đáy nên nghiêng theo, rồi dựng đứng khi bay ra
 const BOX_TILT = 30;
-const toY = (c: number) => (c - (50 + TAG_BOX / 2)) / (TAG_BOX / 100);
+
+const DESK_BASE = '#CDB39A';
+const DESK_BG = [
+  "radial-gradient(ellipse 70% 55% at 50% 38%, rgba(255,246,236,0.55), rgba(255,246,236,0) 70%)",
+  "radial-gradient(ellipse 120% 100% at 50% 50%, rgba(0,0,0,0) 55%, rgba(60,36,20,0.42) 100%)",
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.006 0.32' numOctaves='5' seed='11'/><feColorMatrix values='0 0 0 0 0.38  0 0 0 0 0.25  0 0 0 0 0.14  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.3  0 0 0 0 0.2  0 0 0 0 0.1  0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>\")",
+].join(', ');
 
 const FEATURES = [
   { icon: History, title: 'PawHistory', text: 'Lưu trữ hồ sơ sức khoẻ' },
@@ -62,22 +67,35 @@ type Chapter = {
   cta?: boolean;
 };
 
+/* Mỗi chương có khoảng cuộn riêng; ngoài các khoảng này không có chữ nào hiện ra. */
 const CHAPTERS: Chapter[] = [
   {
-    range: [0, 0.14],
+    range: [0, 0.12],
     side: 'center',
     eyebrow: 'QR Tag · Dành riêng cho thú cưng',
     lines: [{ text: 'Một chiếc tag nhỏ.' }, { text: 'Cả hồ sơ của bé.', accent: true }],
   },
   {
-    range: [0.16, 0.44],
+    range: [0.16, 0.28],
     side: 'left',
     eyebrow: 'Mở hộp',
     lines: [{ text: 'Bên trong là một danh tính riêng cho bé của bạn.' }],
   },
-  { range: [0.5, 0.78], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
   {
-    range: [0.8, 1],
+    range: [0.36, 0.44],
+    side: 'right',
+    eyebrow: 'Cất cánh',
+    lines: [{ text: 'Từ hộp nhỏ,' }, { text: 'đến cổ bé yêu.', accent: true }],
+  },
+  { range: [0.52, 0.64], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
+  {
+    range: [0.72, 0.8],
+    side: 'left',
+    eyebrow: 'Mặt sau',
+    lines: [{ text: 'Mỗi tag một mã riêng,' }, { text: 'mỗi bé một hồ sơ.', accent: true }],
+  },
+  {
+    range: [0.88, 1],
     side: 'center',
     eyebrow: 'Sẵn sàng đồng hành',
     lines: [{ text: 'Gắn tag cho bé, và luôn có người tìm được bé khi cần.' }],
@@ -92,49 +110,46 @@ const POS: Record<Side, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  QUỸ ĐẠO CỦA TAG (cong, không đi thẳng)                             */
+/*  QUỸ ĐẠO: các mốc (tiến độ, giá trị) nối bằng Catmull-Rom          */
+/*  → đường cong trơn, lấy mẫu dày để chuyển động không khựng          */
 /* ------------------------------------------------------------------ */
-const SIDE_X = 52;  // lệch sang trái/phải (% chiều rộng tag)
-const SIDE_C = 36;  // tâm dọc khi đứng bên
-const P_CENTER = { x: 0, y: toY(50) }; // giữa hộp = giữa banner
-const P_RIGHT = { x: SIDE_X, y: toY(SIDE_C) };
-const P_LEFT = { x: -SIDE_X, y: toY(SIDE_C) };
-const P_CTA = { x: 0, y: toY(46) };
+type Key = [number, number];
 
-// Mốc tiến độ của chuỗi mở đầu
-const T_LID: [number, number] = [0.06, 0.24]; // nắp mở 0 → 100°
-const T_SHOW: [number, number] = [0.16, 0.28]; // vòng hiện dần (mờ → rõ) theo lúc nắp đang mở, không bật đột ngột
-const T_RISE: [number, number] = [0.29, 0.44]; // vòng nhấc lên khỏi lõm, tiến gần camera
-const T_BOX_OUT: [number, number] = [0.44, 0.6]; // hộp mờ dần
-
-type Pt = { t: number; x: number; y: number };
-function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number; y: number }, lift: number, steps = 40): Pt[] {
-  return Array.from({ length: steps + 1 }, (_, i) => {
-    const u = i / steps;
-    const e = u * u * (3 - 2 * u);
-    return {
-      t: t0 + (t1 - t0) * u,
-      x: a.x + (b.x - a.x) * e,
-      y: a.y + (b.y - a.y) * e - lift * Math.sin(Math.PI * u),
-    };
-  });
+function curve(keys: Key[], n = 360): { t: number[]; v: number[] } {
+  const t: number[] = [];
+  const v: number[] = [];
+  const last = keys.length - 1;
+  for (let s = 0; s <= n; s++) {
+    const T = s / n;
+    let i = 0;
+    while (i < last - 1 && T > keys[i + 1][0]) i++;
+    const [t0, P1] = keys[i];
+    const [t1, P2] = keys[i + 1];
+    const P0 = keys[Math.max(0, i - 1)][1];
+    const P3 = keys[Math.min(last, i + 2)][1];
+    const u = (T - t0) / (t1 - t0 || 1);
+    const val =
+      0.5 *
+      (2 * P1 +
+        (-P0 + P2) * u +
+        (2 * P0 - 5 * P1 + 4 * P2 - P3) * u * u +
+        (-P0 + 3 * P1 - 3 * P2 + P3) * u * u * u);
+    t.push(T);
+    v.push(val);
+  }
+  return { t, v };
 }
 
-const PATH: Pt[] = [
-  { t: 0, ...P_CENTER },
-  { t: T_RISE[1], ...P_CENTER }, // nằm giữa hộp rồi nâng lên tại chỗ (chỉ phóng to, không đổi vị trí)
-  ...arc(T_RISE[1], 0.5, P_CENTER, P_RIGHT, 16).slice(1),
-  ...arc(0.5, 0.62, P_RIGHT, P_LEFT, 34).slice(1),
-  { t: 0.8, ...P_LEFT },
-  ...arc(0.8, 0.9, P_LEFT, P_CTA, 22).slice(1),
-  { t: 1, ...P_CTA },
-];
-const PATH_T = PATH.map((q) => q.t);
-const PATH_X = PATH.map((q) => `${q.x}%`);
-const PATH_Y = PATH.map((q) => `${q.y}%`);
+// Vòng: x, y theo % chiều rộng/cao của vòng; z theo px (đưa về phía camera); tilt theo độ
+const RING_X = curve([[0, 0], [0.22, 0], [0.3, 0], [0.4, -70], [0.52, -70], [0.66, -10], [0.72, 70], [0.8, 70], [0.9, 0], [1, 0]]);
+const RING_Y = curve([[0, 0], [0.22, 0], [0.3, -6], [0.4, -14], [0.52, -4], [0.66, 0], [0.72, 6], [0.8, -4], [0.9, -18], [1, -18]]);
+const RING_Z = curve([[0, 0], [0.22, 0], [0.3, 110], [0.4, 200], [0.52, 210], [0.66, 180], [0.72, 200], [0.8, 190], [0.9, 170], [1, 170]]);
+const RING_TILT = curve([[0, BOX_TILT], [0.22, BOX_TILT], [0.3, 18], [0.4, 4], [0.52, 0], [0.7, 0], [0.8, -6], [0.9, 0], [1, 0]]);
+// Camera "dolly": cảnh tiến nhẹ khi vòng bay gần, lùi lại khi vòng về giữa
+const CAM = curve([[0, 1], [0.3, 1.02], [0.5, 1.06], [0.75, 1.03], [1, 1.0]]);
 
 /* ------------------------------------------------------------------ */
-/*  CHỮ: mặt nạ kéo từ phía tag đi ra                                 */
+/*  CHỮ: mặt nạ kéo từ phía vòng đi ra                                 */
 /* ------------------------------------------------------------------ */
 const MASK_FROM: Record<Side, string> = {
   left: 'inset(0% 100% 0% 0%)',
@@ -151,15 +166,15 @@ function RevealLine({ text, accent, side, delay }: { text: string; accent?: bool
       style={{ color: accent ? COLOR.brand : COLOR.ink }}
       initial={{ clipPath: MASK_FROM[side] }}
       animate={{ clipPath: MASK_TO }}
-      transition={{ duration: 0.8, delay, ease: EASE_OUT }}
+      transition={{ duration: 0.9, delay, ease: EASE_OUT }}
     >
       {words.map((w, i) => (
         <motion.span
           key={`${w}-${i}`}
           className="mr-[0.25em] inline-block"
-          initial={{ opacity: 0, filter: 'blur(6px)' }}
-          animate={{ opacity: 1, filter: 'blur(0px)' }}
-          transition={{ duration: 0.5, delay: delay + 0.25 + i * 0.05 }}
+          initial={{ opacity: 0, y: 10, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: 0.6, delay: delay + 0.25 + i * 0.05, ease: EASE_OUT }}
         >
           {w}
         </motion.span>
@@ -168,7 +183,7 @@ function RevealLine({ text, accent, side, delay }: { text: string; accent?: bool
   );
 }
 
-function ChapterBody({ c, index }: { c: Chapter; index: number }) {
+function ChapterBody({ c, index, total }: { c: Chapter; index: number; total: number }) {
   const fromX = c.side === 'right' ? 28 : -28;
   return (
     <>
@@ -177,9 +192,9 @@ function ChapterBody({ c, index }: { c: Chapter; index: number }) {
         style={{ color: COLOR.brand }}
         initial={{ opacity: 0, letterSpacing: '0.45em' }}
         animate={{ opacity: 1, letterSpacing: '0.18em' }}
-        transition={{ duration: 0.7, ease: EASE_OUT }}
+        transition={{ duration: 0.8, ease: EASE_OUT }}
       >
-        {String(index + 1).padStart(2, '0')} · {c.eyebrow}
+        {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')} · {c.eyebrow}
       </motion.p>
 
       {c.lines?.map((l, i) => (
@@ -194,7 +209,7 @@ function ChapterBody({ c, index }: { c: Chapter; index: number }) {
               className="flex items-start gap-3"
               initial={{ opacity: 0, x: fromX }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 + i * 0.15, ease: EASE_OUT }}
+              transition={{ duration: 0.7, delay: 0.2 + i * 0.15, ease: EASE_OUT }}
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: '#FFF1E4', color: COLOR.brand }}>
                 <Icon size={18} />
@@ -209,7 +224,7 @@ function ChapterBody({ c, index }: { c: Chapter; index: number }) {
       )}
 
       {c.cta && (
-        <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5, duration: 0.5, ease: EASE_OUT }}>
+        <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5, duration: 0.6, ease: EASE_OUT }}>
           <Link
             href={CTA_HREF}
             className="mt-6 inline-flex items-center justify-center rounded-full px-7 py-3 text-[15px] font-bold text-white shadow-lg transition hover:brightness-110"
@@ -247,10 +262,11 @@ export default function ScrollUnboxingHero() {
   const containerRef = useRef<HTMLElement>(null);
   const progressRef = useRef(0); // tiến độ cuộn, đọc trong vòng lặp render 3D
   const sceneRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1); // chương đang hiện chữ, -1 = không có chữ
+  const [dot, setDot] = useState(0); // chấm chỉ báo tiến độ
   const [boxSize, setBoxSize] = useState(330);
 
-  // Hộp co giãn theo bề rộng cảnh (78vw, tối đa 420px)
+  // Hộp co giãn theo bề rộng cảnh
   useEffect(() => {
     const el = sceneRef.current;
     if (!el) return;
@@ -264,29 +280,36 @@ export default function ScrollUnboxingHero() {
 
   useMotionValueEvent(p, 'change', (v) => {
     progressRef.current = v;
-    let idx = 0;
-    CHAPTERS.forEach((c, i) => { if (v >= c.range[0] - 0.01) idx = i; });
+    // chữ chỉ hiện khi đang nằm trong khoảng của chương, các khoảng không chồng nhau
+    const idx = CHAPTERS.findIndex((c) => v >= c.range[0] && v <= c.range[1]);
     setActive((prev) => (prev === idx ? prev : idx));
+    let d = 0;
+    CHAPTERS.forEach((c, i) => {
+      if (v >= c.range[0] - 0.01) d = i;
+    });
+    setDot((prev) => (prev === d ? prev : d));
   });
 
-  /* Hộp: tiến độ mở nắp (0 → 1), sau đó mờ dần */
-  const lidOpen = useTransform(p, [T_LID[0], T_LID[1]], [0, 1], { clamp: true });
-  const boxOpacity = useTransform(p, T_BOX_OUT, [1, 0]);
-  const boxY = useTransform(p, T_BOX_OUT, ['0%', '26%']);
-  const boxX = useTransform(p, T_BOX_OUT, ['0%', '-26%']);
-  const boxScale = useTransform(p, T_BOX_OUT, [1, 0.88]);
+  /* Hộp: nắp mở, rồi hộp mờ đi và trôi ra khi vòng đã bay khỏi */
+  const lidOpen = useTransform(p, [0.03, 0.2], [0, 1], { clamp: true });
+  const boxOpacity = useTransform(p, [0.34, 0.46], [1, 0]);
+  const boxY = useTransform(p, [0.34, 0.46], ['0%', '26%']);
+  const boxScale = useTransform(p, [0.34, 0.46], [1, 0.88]);
 
-  /* Tag: hiện khi nắp hở, nằm giữa hộp, rồi tiến gần camera ở giữa banner */
-  const tagOpacity = useTransform(p, T_SHOW, [0, 1]);
-  const tagX = useTransform(p, PATH_T, PATH_X);
-  const tagY = useTransform(p, PATH_T, PATH_Y);
-  // Tag nằm trên đáy hộp (nghiêng theo hộp), rồi được nâng lên theo trục Z và dựng đứng về phía camera
-  const tagRotX = useTransform(p, [T_SHOW[0], T_RISE[1]], [BOX_TILT, 0]);
-  const tagZ = useTransform(p, [T_RISE[0], T_RISE[1]], [0, 160]);
-  // bóng trên đáy hộp: đậm khi tag còn nằm sát, nhạt và lệch xa khi tag đã nâng lên
-  const tagShadowOpacity = useTransform(p, [T_RISE[0], T_RISE[1], T_BOX_OUT[1]], [0.35, 0.15, 0]);
-  const tagShadowY = useTransform(p, T_RISE, ['4%', '14%']);
-  const tagShadowScale = useTransform(p, T_RISE, [0.9, 0.7]);
+  /* Vòng: hiện dần khi nắp hở, quỹ đạo cong theo mốc */
+  const tagOpacity = useTransform(p, [0.12, 0.26], [0, 1], { clamp: true });
+  const tagX = useTransform(p, RING_X.t, RING_X.v.map((x) => `${x}%`));
+  const tagY = useTransform(p, RING_Y.t, RING_Y.v.map((y) => `${y}%`));
+  const tagZ = useTransform(p, RING_Z.t, RING_Z.v);
+  const tagRotX = useTransform(p, RING_TILT.t, RING_TILT.v);
+  const camScale = useTransform(p, CAM.t, CAM.v);
+
+  // bóng đổ trên đáy hộp khi vòng còn nằm sát; khi bay lên, bóng mờ và lệch xa
+  const shadowOpacity = useTransform(tagZ, [0, 120, 220], [0.35, 0.12, 0.06]);
+  const shadowY = useTransform(tagZ, [0, 220], ['4%', '16%']);
+  const shadowScale = useTransform(tagZ, [0, 220], [0.9, 0.62]);
+  // quầng sáng phía sau vòng sáng dần khi vòng tiến gần camera
+  const glowOpacity = useTransform(tagZ, [0, 200], [0, 0.55]);
 
   /* Nghiêng theo chuột và tốc độ cuộn */
   const mx = useMotionValue(0);
@@ -303,55 +326,87 @@ export default function ScrollUnboxingHero() {
     my.set(((e.clientY - r.top) / r.height) * 2 - 1);
   };
 
-  const chapter = CHAPTERS[active];
+  const chapter = active >= 0 ? CHAPTERS[active] : null;
 
   return (
-    <section ref={containerRef} onMouseMove={onPointerMove} className="relative h-[330svh] w-full" style={{ backgroundColor: COLOR.cream }} aria-label="Giới thiệu QR Tag">
+    <section
+      ref={containerRef}
+      onMouseMove={onPointerMove}
+      className="relative h-[380svh] w-full"
+      style={{ backgroundColor: DESK_BASE }}
+      aria-label="Giới thiệu QR Tag"
+    >
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
+        {/* Nền mặt bàn: vân gỗ bằng nhiễu SVG, ánh sáng từ trên và vignette */}
+        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: DESK_BG }} />
         <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: p, backgroundColor: COLOR.brand }} />
 
         {/* Chỉ báo tiến độ */}
         <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2 lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:translate-x-0 lg:-translate-y-1/2 lg:flex-col">
           {CHAPTERS.map((c, i) => (
-            <span key={c.eyebrow} className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? 'w-6' : 'w-1.5'}`} style={{ backgroundColor: i === active ? COLOR.brand : '#D1D5DB' }} />
+            <span
+              key={c.eyebrow}
+              className={`h-1.5 rounded-full transition-all duration-700 ${i === dot ? 'w-6' : 'w-1.5'}`}
+              style={{ backgroundColor: i === dot ? COLOR.brand : '#D1D5DB' }}
+            />
           ))}
         </div>
 
-        {/* Cảnh: nghiêng theo chuột/cuộn */}
-        <div ref={sceneRef} className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0" style={{ aspectRatio: '1 / 1', perspective: 1000 }}>
+        {/* Cảnh: nghiêng theo chuột/cuộn, camera dolly nhẹ */}
+        <motion.div
+          ref={sceneRef}
+          className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0"
+          style={{ aspectRatio: '1 / 1', perspective: 1000, scale: camScale }}
+        >
           <motion.div className="absolute inset-0" style={{ rotateX: sceneRotX, rotateY: sceneRotY, transformStyle: 'preserve-3d' }}>
             {/* Hộp 3D nhìn từ trên xuống */}
-            <motion.div className="absolute inset-0 flex items-center justify-center" style={{ opacity: boxOpacity, y: boxY, x: boxX, scale: boxScale }}>
+            <motion.div className="absolute inset-0 flex items-center justify-center" style={{ opacity: boxOpacity, y: boxY, scale: boxScale }}>
               <ScrollBox open={lidOpen} size={boxSize} />
             </motion.div>
 
-            {/* Tag 3D: nằm giữa hộp, bay ra gần camera rồi đi theo quỹ đạo */}
+            {/* Vòng 3D: nằm trong lõm, bay theo quỹ đạo cong */}
             <motion.div
               className="absolute left-0 right-0 mx-auto aspect-square"
               style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, z: tagZ, rotateX: tagRotX, opacity: tagOpacity }}
             >
+              {/* Quầng sáng sau vòng: đi cùng vòng, sáng dần khi vòng tiến gần camera */}
+              <motion.div
+                aria-hidden
+                className="pointer-events-none absolute rounded-full"
+                style={{
+                  left: '-25%',
+                  right: '-25%',
+                  top: '-25%',
+                  bottom: '-25%',
+                  opacity: glowOpacity,
+                  background: 'radial-gradient(circle, rgba(255,214,170,0.9) 0%, rgba(255,214,170,0) 62%)',
+                }}
+              />
               <motion.div
                 aria-hidden
                 className="absolute rounded-full bg-black blur-xl"
-                style={{ left: '34%', right: '34%', top: '34%', bottom: '34%', opacity: tagShadowOpacity, y: tagShadowY, scale: tagShadowScale }}
+                style={{ left: '34%', right: '34%', top: '34%', bottom: '34%', opacity: shadowOpacity, y: shadowY, scale: shadowScale }}
               />
               <QrTag3DCanvas progressRef={progressRef} />
             </motion.div>
           </motion.div>
-        </div>
+        </motion.div>
 
+        {/* Chữ: một chương tại một thời điểm, luôn ở phía đối diện với vòng */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={active}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12, filter: 'blur(4px)' }}
-            transition={{ duration: 0.35 }}
-            className={`absolute ${POS[chapter.side]}`}
-          >
-            <ChapterBody c={chapter} index={active} />
-          </motion.div>
+          {chapter && active >= 0 && (
+            <motion.div
+              key={active}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12, filter: 'blur(4px)' }}
+              transition={{ duration: 0.45 }}
+              className={`absolute ${POS[chapter.side]}`}
+            >
+              <ChapterBody c={chapter} index={active} total={CHAPTERS.length} />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </section>
