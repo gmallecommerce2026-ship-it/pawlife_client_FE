@@ -1,7 +1,7 @@
 'use client';
 // src/components/home/UnboxingScene.tsx
 // Cảnh 3D duy nhất: hộp và vòng cùng nằm trong một không gian three.js.
-//  - Hộp: đáy có lõm tròn vừa khít vòng, bốn thành 2 mm, nắp có bản lề, khe gập, hai cánh gài bên, lưỡi gài nửa tròn, chữ và logo
+//  - Hộp: đáy có lõm tròn vừa khít vòng, bốn thành 2 mm, nắp có bản lề, khe gập, gờ trước cao ~1 cm có khuyết nửa tròn, hai tam giác gài ở hai đầu gờ, chữ và logo
 //  - Vòng: nằm trong lõm; khi nắp mở thì nhấc lên theo quỹ đạo cong 3D, tiến về camera, xoay theo mốc cuộn
 //  - Mọi chuyển động đọc tiến độ cuộn qua ref và làm mượt bằng damping trong useFrame, không dùng state React theo từng khung hình
 
@@ -28,10 +28,9 @@ const BOARD = 0.06;        // độ dày đáy hộp (~1.2 mm)
 const WALL = 0.045;        // độ dày thành khay (~0.9 mm)
 const LID_T = 0.05;        // độ dày tấm nắp (~1 mm)
 const PAPER = 0.035;       // độ dày gờ gài và cánh gài (~0.7 mm): giấy mỏng, không còn khối Lego
-const EAR_FLARE = 0.2;     // góc cánh bên nở ra khi bỏ gài (rad, ~11°)
+const TRI_FLARE = 0.55;    // góc hai tam giác xoay vào phía tâm hộp khi mở nắp (rad, ~31°); luôn ở trong thành hộp, không bao giờ ra ngoài
 const SKIRT_FLARE = 0.13;  // góc gờ trước nở ra khi bỏ gài (rad, ~7°)
 const IN = 0.06;           // lùi của cạnh gấp trước
-const EAR_W = 0.55;        // rộng cánh gài bên (~1.1 cm)
 const S_RING = 0.6875;     // đĩa đường kính 2.75 cm → 1.375 đơn vị
 const RING_REST_Y = HALF_THICK * S_RING + 0.003;
 const ORANGE = '#E89B5A';
@@ -58,33 +57,29 @@ function evalCurve(keys: Key[], t: number): number {
   );
 }
 
-/* Cánh gài bên: tấm giấy mỏng, đầu dưới bo tròn, dựng trong mặt YZ. Nối liền vào mép nắp (đỉnh ở LID_T) */
-const EAR_H = H * 0.92;
-const earShape = new THREE.Shape();
-earShape.moveTo(0, LID_T);
-earShape.lineTo(EAR_W, LID_T);
-earShape.lineTo(EAR_W, -EAR_H * 0.55);
-earShape.quadraticCurveTo(EAR_W, -EAR_H, EAR_W * 0.55, -EAR_H);
-earShape.lineTo(EAR_W * 0.2, -EAR_H);
-earShape.quadraticCurveTo(0, -EAR_H, 0, -EAR_H * 0.6);
-earShape.closePath();
-const earGeo = new THREE.ExtrudeGeometry(earShape, { depth: PAPER, bevelEnabled: false });
-
-/* Gờ gài phía trước nắp (nắp gài kiểu gấp origami, theo video): gờ bọc ra ngoài thành trước, có lưỡi gài nửa tròn ở giữa
-   và hai răng gài nhọn hai bên, lồng vào khe gài trên thành khay. Dựng trong mặt XY, dày 2 mm theo trục Z. */
-const SK = 0.18;       // cao gờ (~0.35 cm)
-const TAB_R = 0.2;     // bán kính lưỡi gài nửa tròn (dài ~0.8 cm)
-const tabShape = new THREE.Shape();
-tabShape.moveTo(-TAB_R, 0);
-tabShape.absarc(0, 0, TAB_R, Math.PI, 2 * Math.PI, false);
-tabShape.closePath();
-const tabGeo = new THREE.ExtrudeGeometry(tabShape, { depth: PAPER, bevelEnabled: false });
-const hookShape = new THREE.Shape();
-hookShape.moveTo(0, 0);
-hookShape.lineTo(0.07, 0);
-hookShape.lineTo(0.035, -0.12);
-hookShape.closePath();
-const hookGeo = new THREE.ExtrudeGeometry(hookShape, { depth: PAPER, bevelEnabled: false });
+/* Gờ gài phía trước nắp: tấm giấy mỏng bọc ngoài thành trước, cao gần bằng thành hộp (~1 cm).
+   Giữa mép dưới có khuyết nửa tròn CẮT VÀO gờ (không có lưỡi nhô ra), thành trước phía dưới để phẳng, không có khe cho phần tròn.
+   Hai đầu gờ có hai tam giác giấy gập 90° vào trong để gài vào khe ở mép hai đầu thành trước. */
+const SK = H - 0.02;       // cao gờ (~0.96 cm): gần bằng chiều cao thành hộp
+const NOTCH_R = 0.2;       // bán kính khuyết nửa tròn (đường kính ~0.8 cm)
+const TRI_L = 0.4;         // chiều dài tam giác gài (~0.8 cm)
+const TRI_X = B / 2 - WALL - PAPER - 0.012; // vị trí gập của tam giác: ngay sát mặt trong thành bên
+const skirtShape = new THREE.Shape();
+skirtShape.moveTo(-TRI_X, LID_T);
+skirtShape.lineTo(TRI_X, LID_T);
+skirtShape.lineTo(TRI_X, -SK);
+skirtShape.lineTo(NOTCH_R, -SK);
+skirtShape.absarc(0, -SK, NOTCH_R, 0, Math.PI, false); // nửa tròn khuyết lên phía trên, lõm vào gờ
+skirtShape.lineTo(-TRI_X, -SK);
+skirtShape.closePath();
+const skirtGeo = new THREE.ExtrudeGeometry(skirtShape, { depth: PAPER, bevelEnabled: false });
+/* Tam giác gài: cạnh đứng dính vào đầu gờ, mũi nhọn ở dưới, dựng trong mặt XY (trục +x là hướng mũi khi mở phẳng) */
+const triShape = new THREE.Shape();
+triShape.moveTo(0, 0);
+triShape.lineTo(0, -SK);
+triShape.lineTo(TRI_L, -SK);
+triShape.closePath();
+const triGeo = new THREE.ExtrudeGeometry(triShape, { depth: PAPER, bevelEnabled: false });
 
 /* Quỹ đạo vòng: X nhân với hệ số theo khung hình (màn hẹp thì thu lại) */
 const RING_X: Key[] = [[0, 0], [0.12, 0], [0.26, 0], [0.36, -1.2], [0.52, -1.4], [0.64, -0.2], [0.72, 1.2], [0.8, 1.4], [0.9, 0], [1, 0]];
@@ -371,7 +366,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const boxRef = useRef<THREE.Group>(null);
   const lidRef = useRef<THREE.Group>(null);
   const skirtRef = useRef<THREE.Group>(null);
-  const earRefs = useRef<(THREE.Group | null)[]>([null, null]);
+  const triRefs = useRef<(THREE.Group | null)[]>([null, null]);
   const ringRef = useRef<THREE.Group>(null);
 
   // Phòng studio phản chiếu cho men sứ và bìa
@@ -406,8 +401,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const recessMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#E6D9CA', roughness: 0.9, transparent: true }), []);
   const creaseMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A3E12', transparent: true, opacity: 0.35 }), []);
   const slitMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3A1C08', roughness: 1, transparent: true, opacity: 0.65, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), []);
-  const windowMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.2, transparent: true, opacity: 0.6 }), []);
-
+  
   // Chữ và logo của nắp: vẽ logo sau khi ảnh tải xong
   useEffect(() => {
     const img = new Image();
@@ -473,14 +467,15 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     if (lidRef.current) {
       const lidA = evalCurve(LID, t);
       lidRef.current.rotation.x = -lidA;
-      // Nở nhẹ khi bỏ gài: giấy bung ra theo góc mở nắp; đóng lại thì ép về sát thành để lưỡi gài vào khe
+      // Nở nhẹ khi bỏ gài: gờ trước bung ra, hai tam giác nhả khỏi thành bên (xoay vào tâm hộp); đóng lại thì gờ ép sát thành, hai tam giác gập 90° vào bên trong thành hộp
       const flare = THREE.MathUtils.smoothstep(lidA, 0.12, 0.7);
       if (skirtRef.current) skirtRef.current.rotation.x = -SKIRT_FLARE * flare;
-      const earL = earRefs.current[0];
-      const earR = earRefs.current[1];
-      if (earL) earL.rotation.z = -EAR_FLARE * flare;
-      if (earR) earR.rotation.z = EAR_FLARE * flare;
-      // gỡ lưỡi gài: nắp trượt nhẹ ra trước rồi mới lật (chặn âm do nội suy Catmull-Rom)
+      // góc gập quanh trục đứng ở đầu gờ: π/2 = mũi chỉ thẳng vào trong hộp, nép sát mặt trong thành bên (gài);
+      // lớn hơn π/2 = mũi xoay về phía tâm hộp, vẫn nằm bên trong thành, không lòi ra ngoài
+      triRefs.current.forEach((g, i) => {
+        if (g) g.rotation.y = (i === 0 ? -1 : 1) * (Math.PI / 2 + TRI_FLARE * flare);
+      });
+      // gỡ tam giác khỏi khe: nắp trượt nhẹ ra trước rồi mới lật (chặn âm do nội suy Catmull-Rom)
       lidRef.current.position.z = -B / 2 + Math.max(0, evalCurve(LID_PULL, t));
     }
 
@@ -532,13 +527,10 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
         <mesh position={[B / 2 - WALL / 2, H / 2, 0]} castShadow material={[orangeMat, liningMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
           <boxGeometry args={[WALL, H, B - 2 * WALL]} />
         </mesh>
-        {/* Khe gài trên thành hộp: khe nửa tròn ở thành trước cho lưỡi gài, hai khe ngang ở thành bên cho cánh gài */}
-        <mesh position={[0, H - SK, B / 2 + 0.002]} material={slitMat}>
-          <ringGeometry args={[TAB_R * 0.94, TAB_R + 0.014, 32, 1, Math.PI, Math.PI]} />
-        </mesh>
+        {/* Khe gài ở mép hai đầu thành trước (cho hai tam giác). Thành trước phía giữa để phẳng, không có khe cho phần tròn */}
         {[-1, 1].map((sg) => (
-          <mesh key={sg} position={[sg * (B / 2 + 0.002), H - EAR_H + 0.09, B / 2 - IN - EAR_W / 2]} rotation={[0, sg * Math.PI / 2, 0]} material={slitMat}>
-            <planeGeometry args={[0.26, 0.028]} />
+          <mesh key={sg} position={[sg * (TRI_X + PAPER / 2), H - SK / 2, B / 2 + 0.002]} material={slitMat}>
+            <planeGeometry args={[PAPER + 0.012, SK]} />
           </mesh>
         ))}
 
@@ -552,14 +544,14 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <mesh position={[0, LID_T / 2, B / 2]} castShadow material={[orangeMat, orangeMat, lidTopMat, liningMat, orangeMat, orangeMat]}>
             <boxGeometry args={[B, LID_T, B]} />
           </mesh>
-          {/* Gờ gài phía trước: giấy mỏng gập xuống ngoài thành trước, có lưỡi gài nửa tròn và hai răng gài; nở nhẹ ra khi bỏ gài */}
+          {/* Gờ gài phía trước: giấy mỏng cao ~1 cm bọc ngoài thành trước, khuyết nửa tròn ở mép dưới; hai tam giác ở hai đầu gập vào khe */}
           <group ref={skirtRef} position={[0, 0, B]}>
-            <mesh position={[0, (LID_T - SK) / 2, PAPER / 2]} castShadow material={orangeMat}>
-              <boxGeometry args={[B - 2 * IN, SK + LID_T, PAPER]} />
-            </mesh>
-            <mesh position={[0, -SK, 0]} castShadow material={orangeMat} geometry={tabGeo} />
-            <mesh position={[-(TAB_R + 0.035), -SK, 0]} castShadow material={orangeMat} geometry={hookGeo} />
-            <mesh position={[TAB_R - 0.035, -SK, 0]} castShadow material={orangeMat} geometry={hookGeo} />
+            <mesh castShadow material={orangeMat} geometry={skirtGeo} />
+            {[-1, 1].map((sg, i) => (
+              <group key={sg} ref={(g) => { triRefs.current[i] = g; }} position={[sg * TRI_X, 0, 0]} scale={[sg, 1, 1]} rotation={[0, sg * Math.PI / 2, 0]}>
+                <mesh castShadow material={orangeMat} geometry={triGeo} />
+              </group>
+            ))}
           </group>
 
           {/* Khe gập ở bản lề và ở cạnh gấp trước */}
@@ -569,16 +561,6 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <mesh position={[0, LID_T + 0.002, B - IN]} rotation={[-Math.PI / 2, 0, 0]} material={creaseMat}>
             <planeGeometry args={[B, 0.05]} />
           </mesh>
-          {/* Lỗ nửa tròn ở mặt trong, giữa cạnh gấp trước */}
-          <mesh position={[0, -0.002, B]} rotation={[Math.PI / 2, 0, 0]} material={windowMat}>
-            <circleGeometry args={[0.2, 32, Math.PI, Math.PI]} />
-          </mesh>
-          {/* Hai cánh gài bên: giấy mỏng bo tròn, ôm sát ngoài thành hộp khi đóng, nở nhẹ ra ngoài khi mở (xoay quanh mép nắp) */}
-          {[-1, 1].map((sg, i) => (
-            <group key={sg} ref={(g) => { earRefs.current[i] = g; }} position={[sg * (B / 2), 0, 0]}>
-              <mesh position={[0, 0, sg > 0 ? B - IN : B - IN - EAR_W]} rotation={[0, sg * Math.PI / 2, 0]} castShadow material={orangeMat} geometry={earGeo} />
-            </group>
-          ))}
         </group>
       </group>
 
