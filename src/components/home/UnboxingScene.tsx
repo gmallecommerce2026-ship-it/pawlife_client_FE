@@ -185,6 +185,12 @@ const SKIRT: Key[] = [[0, 0], [0.028, 1], [0.04, 1], [1, 1]];
 // Camera: lùi nhẹ rồi tiến về vòng ở giữa hành trình (dolly)
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
+const LOOK_Y = 0.4;        // camera nhìn vào điểm (0, LOOK_Y, 0)
+/* Màn hình dọc/hẹp (điện thoại): camera tự lùi ra để luôn thấy cỏ bị hộp đè ở hai bên trái/phải.
+   SIDE_NEED = nửa bề ngang (đơn vị thế giới) cần nhìn thấy tại mép TRƯỚC của hộp; hộp rộng 4 (nửa = 2) nên 3.1 chừa ~1.1 đơn vị cỏ mỗi bên.
+   Tăng số này → camera xa hơn, hộp nhỏ hơn, thấy nhiều cỏ hơn. Màn hình ngang/PC cần ít hơn khoảng cách gốc nên không bị ảnh hưởng. */
+const SIDE_NEED = 3.1;
+const FRONT_OFFSET = 1.8;  // mép trước hộp gần camera hơn tâm hộp ~1.8 đơn vị theo trục nhìn
 
 /* Làm sạch ảnh mặt trước khi nạp.
    Khe ghim giờ là lỗ xuyên thật trong hình học (rộng ~0.1 cm), nên mọi vệt "khe" có sẵn trong ảnh gốc đều thừa.
@@ -750,7 +756,17 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
         setPullLock(needLock);
       }
     }
-    const xs = Math.min(1, Math.max(0.5, state.viewport.width / 6));
+    // Camera: khoảng cách gốc theo đường cong (dolly) nhưng không bao giờ gần hơn mức cần để thấy đủ SIDE_NEED ở hai bên theo tỉ lệ khung hình
+    const cam = state.camera as THREE.PerspectiveCamera;
+    const aspect = state.size.width / Math.max(1, state.size.height);
+    const camY = evalCurve(CAM_Y, t);
+    const camZ = evalCurve(CAM_Z, t);
+    const d0 = Math.hypot(camY - LOOK_Y, camZ);                          // khoảng cách gốc tới điểm nhìn
+    const dNeed = SIDE_NEED / (aspect * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))) + FRONT_OFFSET;
+    const dist = Math.max(d0, dNeed);
+    const m = dist / d0;                                                  // = 1 trên PC (không đổi), > 1 khi màn hình hẹp
+    // Quỹ đạo ngang của vòng: viewport đo ở khoảng cách gốc nên nhân với m để phần bay ra hai bên khớp bề ngang thực nhìn thấy
+    const xs = Math.min(1, Math.max(0.5, (state.viewport.width * m) / 6));
 
     if (ringRef.current) {
       ringRef.current.position.set(evalCurve(RING_X, t) * xs, evalCurve(RING_Y, t), evalCurve(RING_Z, t));
@@ -779,8 +795,14 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
     }
 
 
-    state.camera.position.set(0, evalCurve(CAM_Y, t), evalCurve(CAM_Z, t));
-    state.camera.lookAt(0, 0.4, 0);
+    cam.position.set(0, LOOK_Y + (camY - LOOK_Y) * m, camZ * m); // lùi dọc theo đúng hướng nhìn cũ
+    cam.lookAt(0, LOOK_Y, 0);
+    // Lùi camera bao nhiêu thì đẩy sương mù ra bấy nhiêu, để hộp và cỏ không bị phủ màu be nhiều hơn
+    if (scene.fog) {
+      const fog = scene.fog as THREE.Fog;
+      fog.near = FOG_NEAR + (dist - d0);
+      fog.far = FOG_FAR + (dist - d0);
+    }
   });
 
   return (
