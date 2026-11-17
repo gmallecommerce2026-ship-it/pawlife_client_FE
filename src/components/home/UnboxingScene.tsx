@@ -28,8 +28,9 @@ const BOARD = 0.06;        // độ dày đáy hộp (~1.2 mm)
 const WALL = 0.045;        // độ dày thành khay (~0.9 mm)
 const LID_T = 0.05;        // độ dày tấm nắp (~1 mm)
 const PAPER = 0.035;       // độ dày gờ gài và cánh gài (~0.7 mm): giấy mỏng, không còn khối Lego
-const TRI_FLARE = 0.55;    // góc hai tam giác xoay vào phía tâm hộp khi mở nắp (rad, ~31°); luôn ở trong thành hộp, không bao giờ ra ngoài
-const SKIRT_FLARE = 0.13;  // góc gờ trước nở ra khi bỏ gài (rad, ~7°)
+const SKIRT_OPEN_DEG = 83; // góc mở thẳng gờ trước ra ngoài để rút hai tam giác khỏi khe (độ, chỉnh trong khoảng 80–85)
+const SKIRT_OPEN = THREE.MathUtils.degToRad(SKIRT_OPEN_DEG);
+const TRI_OUT = 0.35;      // góc hai tam giác nở ra ngoài một chút sau khi đã rút khỏi khe (rad, ~20°)
 const IN = 0.06;           // lùi của cạnh gấp trước
 const S_RING = 0.6875;     // đĩa đường kính 2.75 cm → 1.375 đơn vị
 const RING_REST_Y = HALF_THICK * S_RING + 0.003;
@@ -58,12 +59,15 @@ function evalCurve(keys: Key[], t: number): number {
 }
 
 /* Gờ gài phía trước nắp: tấm giấy mỏng bọc ngoài thành trước, cao gần bằng thành hộp (~1 cm).
-   Giữa mép dưới có khuyết nửa tròn CẮT VÀO gờ (không có lưỡi nhô ra), thành trước phía dưới để phẳng, không có khe cho phần tròn.
-   Hai đầu gờ có hai tam giác giấy gập 90° vào trong để gài vào khe ở mép hai đầu thành trước. */
+   Giữa mép dưới có khuyết nửa tròn CẮT VÀO gờ (không có lưỡi nhô ra). Thành trước chỉ có thêm hai khe ở hai đầu, không lõm chỗ nào khác.
+   Hai đầu gờ có hai tam giác giấy gập 90° vào trong, cắm qua hai khe và nép sát mặt trong thành bên.
+   Mở nắp: gờ mở thẳng ra ngoài (quay quanh cạnh trước của nắp) → tam giác tuột khỏi khe → nắp mới lật lên. */
 const SK = H - 0.02;       // cao gờ (~0.96 cm): gần bằng chiều cao thành hộp
 const NOTCH_R = 0.2;       // bán kính khuyết nửa tròn (đường kính ~0.8 cm)
 const TRI_L = 0.4;         // chiều dài tam giác gài (~0.8 cm)
 const TRI_X = B / 2 - WALL - PAPER - 0.012; // vị trí gập của tam giác: ngay sát mặt trong thành bên
+const SLOT_A = TRI_X - 0.005;               // mép trong của khe (phía giữa thành trước)
+const SLOT_B = TRI_X + PAPER + 0.005;       // mép ngoài của khe (phía đầu thành trước)
 const skirtShape = new THREE.Shape();
 skirtShape.moveTo(-TRI_X, LID_T);
 skirtShape.lineTo(TRI_X, LID_T);
@@ -73,11 +77,12 @@ skirtShape.absarc(0, -SK, NOTCH_R, 0, Math.PI, false); // nửa tròn khuyết l
 skirtShape.lineTo(-TRI_X, -SK);
 skirtShape.closePath();
 const skirtGeo = new THREE.ExtrudeGeometry(skirtShape, { depth: PAPER, bevelEnabled: false });
-/* Tam giác gài: cạnh đứng dính vào đầu gờ, mũi nhọn ở dưới, dựng trong mặt XY (trục +x là hướng mũi khi mở phẳng) */
+/* Tam giác gài: cạnh đứng dính cả chiều cao đầu gờ, mũi nhọn hướng lên, dựng trong mặt XY (trục +x là hướng mũi khi mở phẳng).
+   Mũi ở trên nên khi gờ quay ra ngoài, không góc nào của tam giác quét xuống đáy hộp */
 const triShape = new THREE.Shape();
-triShape.moveTo(0, 0);
-triShape.lineTo(0, -SK);
-triShape.lineTo(TRI_L, -SK);
+triShape.moveTo(0, -SK);
+triShape.lineTo(TRI_L, 0);
+triShape.lineTo(0, 0);
 triShape.closePath();
 const triGeo = new THREE.ExtrudeGeometry(triShape, { depth: PAPER, bevelEnabled: false });
 
@@ -87,10 +92,10 @@ const RING_Y: Key[] = [[0, RING_REST_Y], [0.12, RING_REST_Y], [0.26, 0.6], [0.36
 const RING_Z: Key[] = [[0, 0], [0.12, 0], [0.26, 0.2], [0.36, 1.4], [0.52, 2.2], [0.64, 1.6], [0.72, 2.4], [0.8, 2.0], [0.9, 1.0], [1, 1.0]];
 // Nghiêng: từ nằm phẳng (-π/2) đến mặt hướng camera
 const RING_RX: Key[] = [[0, -Math.PI / 2], [0.26, -0.9], [0.36, -0.3], [0.5, -0.3], [1, -0.3]];
-// Nắp (theo video mẫu): 1) nhấc nhẹ ~10° để gỡ lưỡi gài, 2) lật nhanh lên, lố tới ~112° rồi hồi về ~109°
+// Nắp (theo video mẫu): 1) gờ trước mở thẳng ra (t < 0.03) rồi nắp mới nhấc nhẹ ~10°, 2) lật nhanh lên, lố tới ~112° rồi hồi về ~109°
 const LID: Key[] = [[0, 0], [0.03, 0], [0.07, 0.14], [0.1, 0.18], [0.21, 1.84], [0.28, 1.95], [0.38, 1.9], [1, 1.9]];
-// Nắp trượt ra trước (đơn vị thế giới) khi gỡ lưỡi gài khỏi khe, rồi về chỗ cũ khi đã lật lên
-const LID_PULL: Key[] = [[0, 0], [0.03, 0], [0.07, 0.07], [0.12, 0.07], [0.2, 0], [1, 0]];
+// Gờ trước (0 → 1): mở thẳng ra ngoài trước, xong hẳn khi nắp bắt đầu lật (t ≈ 0.03); đóng lại thì gờ gập xuống cuối cùng để tam giác cắm vào khe
+const SKIRT: Key[] = [[0, 0], [0.028, 1], [0.04, 1], [1, 1]];
 // Camera: lùi nhẹ rồi tiến về vòng ở giữa hành trình (dolly)
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
@@ -400,7 +405,6 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const lidTopMat = useMemo(() => new THREE.MeshStandardMaterial({ map: lidTex, roughness: 0.85, bumpMap: cardGrain, bumpScale: 0.015, transparent: true }), [lidTex, cardGrain]);
   const recessMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#E6D9CA', roughness: 0.9, transparent: true }), []);
   const creaseMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A3E12', transparent: true, opacity: 0.35 }), []);
-  const slitMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3A1C08', roughness: 1, transparent: true, opacity: 0.65, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), []);
   
   // Chữ và logo của nắp: vẽ logo sau khi ảnh tải xong
   useEffect(() => {
@@ -467,16 +471,16 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
     if (lidRef.current) {
       const lidA = evalCurve(LID, t);
       lidRef.current.rotation.x = -lidA;
-      // Nở nhẹ khi bỏ gài: gờ trước bung ra, hai tam giác nhả khỏi thành bên (xoay vào tâm hộp); đóng lại thì gờ ép sát thành, hai tam giác gập 90° vào bên trong thành hộp
-      const flare = THREE.MathUtils.smoothstep(lidA, 0.12, 0.7);
-      if (skirtRef.current) skirtRef.current.rotation.x = -SKIRT_FLARE * flare;
-      // góc gập quanh trục đứng ở đầu gờ: π/2 = mũi chỉ thẳng vào trong hộp, nép sát mặt trong thành bên (gài);
-      // lớn hơn π/2 = mũi xoay về phía tâm hộp, vẫn nằm bên trong thành, không lòi ra ngoài
+      lidRef.current.position.z = -B / 2; // nắp không còn trượt: tam giác được rút ra nhờ gờ trước mở thẳng
+      // 1) Gờ trước quay quanh cạnh trước của nắp, mở thẳng ra ngoài: tam giác trượt theo cung tròn qua khe và tuột ra.
+      //    Chặn về [0, 1] vì nội suy Catmull-Rom có thể lố nhẹ.
+      const open = THREE.MathUtils.clamp(evalCurve(SKIRT, t), 0, 1);
+      if (skirtRef.current) skirtRef.current.rotation.x = -SKIRT_OPEN * open;
+      // 2) Tam giác: gài thì gập 90° vào trong (π/2); sau khi đã rút khỏi khe thì nở ra ngoài một chút, không quặp vào trong
+      const out = THREE.MathUtils.smoothstep(open, 0.7, 1);
       triRefs.current.forEach((g, i) => {
-        if (g) g.rotation.y = (i === 0 ? -1 : 1) * (Math.PI / 2 + TRI_FLARE * flare);
+        if (g) g.rotation.y = (i === 0 ? -1 : 1) * (Math.PI / 2 - TRI_OUT * out);
       });
-      // gỡ tam giác khỏi khe: nắp trượt nhẹ ra trước rồi mới lật (chặn âm do nội suy Catmull-Rom)
-      lidRef.current.position.z = -B / 2 + Math.max(0, evalCurve(LID_PULL, t));
     }
 
 
@@ -515,9 +519,15 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <boxGeometry args={[B, BOARD, B]} />
         </mesh>
         {/* Thành khay: mặt ngoài cam, mặt trong kem (theo video). Thứ tự mặt: +x, -x, +y, -y, +z, -z */}
+        {/* Thành trước: phẳng, chỉ có hai khe cắm tam giác ở hai đầu (cắt thật qua cả chiều dày và chiều cao thành) */}
         <mesh position={[0, H / 2, B / 2 - WALL / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, orangeMat, liningMat]}>
-          <boxGeometry args={[B, H, WALL]} />
+          <boxGeometry args={[2 * SLOT_A, H, WALL]} />
         </mesh>
+        {[-1, 1].map((sg) => (
+          <mesh key={sg} position={[sg * (SLOT_B + B / 2) / 2, H / 2, B / 2 - WALL / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, orangeMat, liningMat]}>
+            <boxGeometry args={[B / 2 - SLOT_B, H, WALL]} />
+          </mesh>
+        ))}
         <mesh position={[0, H / 2, -B / 2 + WALL / 2]} castShadow material={[orangeMat, orangeMat, orangeMat, orangeMat, liningMat, orangeMat]}>
           <boxGeometry args={[B, H, WALL]} />
         </mesh>
@@ -527,13 +537,6 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
         <mesh position={[B / 2 - WALL / 2, H / 2, 0]} castShadow material={[orangeMat, liningMat, orangeMat, orangeMat, orangeMat, orangeMat]}>
           <boxGeometry args={[WALL, H, B - 2 * WALL]} />
         </mesh>
-        {/* Khe gài ở mép hai đầu thành trước (cho hai tam giác). Thành trước phía giữa để phẳng, không có khe cho phần tròn */}
-        {[-1, 1].map((sg) => (
-          <mesh key={sg} position={[sg * (TRI_X + PAPER / 2), H - SK / 2, B / 2 + 0.002]} material={slitMat}>
-            <planeGeometry args={[PAPER + 0.012, SK]} />
-          </mesh>
-        ))}
-
         {/* Lõm tròn vừa khít vòng */}
         <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]} material={recessMat} receiveShadow>
           <circleGeometry args={[S_RING * 1.04, 64]} />
@@ -544,7 +547,7 @@ function Scene({ progressRef }: { progressRef: MutableRefObject<number> }) {
           <mesh position={[0, LID_T / 2, B / 2]} castShadow material={[orangeMat, orangeMat, lidTopMat, liningMat, orangeMat, orangeMat]}>
             <boxGeometry args={[B, LID_T, B]} />
           </mesh>
-          {/* Gờ gài phía trước: giấy mỏng cao ~1 cm bọc ngoài thành trước, khuyết nửa tròn ở mép dưới; hai tam giác ở hai đầu gập vào khe */}
+          {/* Gờ gài phía trước: giấy mỏng cao ~1 cm bọc ngoài thành trước, khuyết nửa tròn ở mép dưới; hai tam giác ở hai đầu gập vào khe; cả cụm quay quanh cạnh trước của nắp khi mở */}
           <group ref={skirtRef} position={[0, 0, B]}>
             <mesh castShadow material={orangeMat} geometry={skirtGeo} />
             {[-1, 1].map((sg, i) => (
