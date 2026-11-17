@@ -1,10 +1,9 @@
 'use client';
 // src/components/home/QrTag3DCanvas.tsx
 // Viên QR Tag 3D dựng bằng code (three.js qua React Three Fiber):
-//  - Đĩa tròn có độ dày, mặt trước là logo (ảnh tag gốc), mặt sau là mã QR vẽ bằng code
-//  - Vòng khoá kim loại ở đỉnh, nối với đĩa bằng một đoạn ngắn
-//  - Đĩa tự xoay quanh trục đứng (lật trước/sau) và đung đưa như con lắc quanh điểm treo
-//  - Góc xoay theo tiến độ cuộn (progressRef), kèm dao động nhỏ khi đứng yên
+//  - Đĩa tròn mép bo (dạng lens), nhìn ngang vẫn tròn
+//  - Mặt trước là logo, mặt sau là mã QR vẽ bằng code; cả hai xoay 90° ngược chiều kim đồng hồ
+//  - Đĩa tự xoay quanh trục đứng để lật trước/sau theo tiến độ cuộn, kèm dao động nhẹ khi đứng yên
 
 import { useMemo, useRef, type MutableRefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -12,9 +11,9 @@ import * as THREE from 'three';
 
 const FRONT_SRC = '/images/qr-tag-only.webp';
 const RADIUS = 1;
-const THICKNESS = 0.12;
-const RING_Y = 1.28;      // tâm vòng khoá (phía trên đĩa)
-const PIVOT_Y = 1.45;     // điểm treo: đỉnh vòng khoá
+const HALF_THICK = 0.07;   // nửa độ dày đĩa
+const EDGE = 0.06;         // bán kính bo mép
+const FACE_ROT = Math.PI / 2; // xoay mặt 90° ngược chiều kim đồng hồ
 
 // Tiến độ cuộn → góc xoay quanh trục đứng (rad). Mỗi nửa vòng là một lần lật.
 const SPIN_T = [0, 0.38, 0.5, 0.62, 0.8, 0.9, 1];
@@ -31,7 +30,29 @@ function spinAt(t: number): number {
   return SPIN_A[SPIN_A.length - 1];
 }
 
-/* Bộ sinh số giả ngẫu nhiên có hạt giống: mã QR không đổi giữa các lần tải */
+/* Mặt tròn có mép bo: profile quay quanh trục Y tạo thành thân đĩa */
+function makeLensGeometry(): THREE.LatheGeometry {
+  const pts: THREE.Vector2[] = [];
+  const R = RADIUS;
+  const h = HALF_THICK;
+  const e = EDGE;
+  const arcSteps = 10;
+  pts.push(new THREE.Vector2(0, h));
+  // Mép trên: cung tròn từ mặt trên xuống thành bên
+  for (let i = 0; i <= arcSteps; i++) {
+    const a = Math.PI / 2 - (i / arcSteps) * (Math.PI / 2);
+    pts.push(new THREE.Vector2(R - e + e * Math.cos(a), h - e + e * Math.sin(a)));
+  }
+  // Mép dưới: cung tròn từ thành xuống mặt dưới
+  for (let i = 0; i <= arcSteps; i++) {
+    const a = 0 - (i / arcSteps) * (Math.PI / 2);
+    pts.push(new THREE.Vector2(R - e + e * Math.cos(a), -(h - e) + e * Math.sin(a)));
+  }
+  pts.push(new THREE.Vector2(0, -h));
+  return new THREE.LatheGeometry(pts, 160);
+}
+
+/* Mặt sau: mã QR mô phỏng (3 mẫu định vị + ô ngẫu nhiên). Thay bằng mã thật khi có dữ liệu. */
 function seeded(seed: number) {
   let s = seed;
   return () => {
@@ -42,7 +63,6 @@ function seeded(seed: number) {
   };
 }
 
-/* Mặt sau: mã QR mô phỏng (3 mẫu định vị + ô ngẫu nhiên). Thay bằng mã thật khi có dữ liệu. */
 function makeBackTexture(): THREE.CanvasTexture {
   const S = 512;
   const N = 25;
@@ -85,9 +105,8 @@ function makeBackTexture(): THREE.CanvasTexture {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  // Mặt đáy của đĩa nhìn từ phía sau nên bị ngược: lật ngang để chữ đọc đúng
   tex.wrapS = THREE.RepeatWrapping;
-  tex.repeat.x = -1;
+  tex.repeat.x = -1; // mặt sau nhìn từ phía đối diện nên lật ngang để chữ đọc đúng
   tex.offset.x = 1;
   return tex;
 }
@@ -96,55 +115,46 @@ function Tag({ progressRef }: { progressRef: MutableRefObject<number> }) {
   const frontTex = useMemo(() => {
     const t = new THREE.TextureLoader().load(FRONT_SRC);
     t.colorSpace = THREE.SRGBColorSpace;
+    t.center.set(0.5, 0.5);
+    t.rotation = FACE_ROT;
     return t;
   }, []);
-  const backTex = useMemo(() => makeBackTexture(), []);
+  const backTex = useMemo(() => {
+    const t = makeBackTexture();
+    t.center.set(0.5, 0.5);
+    t.rotation = FACE_ROT;
+    return t;
+  }, []);
 
-  const geometry = useMemo(() => new THREE.CylinderGeometry(RADIUS, RADIUS, THICKNESS, 128, 1), []);
-  const sideMat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ color: '#F4F4F5', roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.1 }),
+  const lens = useMemo(() => makeLensGeometry(), []);
+  const faceGeo = useMemo(() => new THREE.CircleGeometry(RADIUS * 0.995, 128), []);
+  const bodyMat = useMemo(
+    () => new THREE.MeshPhysicalMaterial({ color: '#FFFFFF', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 }),
     [],
   );
   const frontMat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ map: frontTex, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.08 }),
+    () => new THREE.MeshPhysicalMaterial({ map: frontTex, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }),
     [frontTex],
   );
   const backMat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ map: backTex, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 }),
+    () => new THREE.MeshPhysicalMaterial({ map: backTex, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }),
     [backTex],
   );
-  const metalMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: '#C9CED6', metalness: 0.9, roughness: 0.25 }),
-    [],
-  );
 
-  const pivot = useRef<THREE.Group>(null);
   const spin = useRef<THREE.Group>(null);
-
   useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
-    if (spin.current) spin.current.rotation.y = spinAt(progressRef.current) + Math.sin(t * 0.9) * 0.1;
-    if (pivot.current) pivot.current.rotation.z = Math.sin(t * 1.3) * 0.1 + Math.sin(t * 0.5) * 0.03;
+    if (spin.current) {
+      spin.current.rotation.y = spinAt(progressRef.current) + Math.sin(clock.elapsedTime * 0.9) * 0.1;
+    }
   });
 
   return (
-    // Điểm treo ở đỉnh vòng khoá: con lắc đung đưa quanh đây
-    <group ref={pivot} position={[0, PIVOT_Y, 0]}>
-      <group position={[0, -PIVOT_Y, 0]}>
-        {/* Trục xoay đi qua tâm đĩa và vòng khoá */}
-        <group ref={spin}>
-          {/* Đĩa: nắp trên = mặt trước, nắp dưới = mặt sau, thân = viền */}
-          <mesh geometry={geometry} rotation={[Math.PI / 2, 0, 0]} material={[sideMat, frontMat, backMat]} />
-
-          {/* Vòng khoá + đoạn nối với đĩa */}
-          <mesh position={[0, RING_Y, 0]} material={metalMat}>
-            <torusGeometry args={[0.17, 0.03, 16, 48]} />
-          </mesh>
-          <mesh position={[0, RING_Y - 0.22, 0]} material={metalMat}>
-            <cylinderGeometry args={[0.025, 0.025, 0.14, 12]} />
-          </mesh>
-        </group>
-      </group>
+    <group ref={spin}>
+      {/* Thân đĩa mép bo, đặt nằm trong mặt phẳng XY để mặt trước hướng về camera */}
+      <mesh geometry={lens} rotation={[Math.PI / 2, 0, 0]} material={bodyMat} />
+      {/* Mặt trước và mặt sau */}
+      <mesh geometry={faceGeo} position={[0, 0, HALF_THICK + 0.002]} material={frontMat} />
+      <mesh geometry={faceGeo} position={[0, 0, -(HALF_THICK + 0.002)]} rotation={[0, Math.PI, 0]} material={backMat} />
     </group>
   );
 }
@@ -154,12 +164,14 @@ export default function QrTag3DCanvas({ progressRef }: { progressRef: MutableRef
     <Canvas
       camera={{ position: [0, 0, 7], fov: 28 }}
       gl={{ antialias: true, alpha: true }}
+      flat
       dpr={[1, 2]}
       style={{ background: 'transparent' }}
     >
-      <ambientLight intensity={0.9} />
-      <directionalLight position={[3, 4, 5]} intensity={1.6} />
-      <directionalLight position={[-4, -2, 3]} intensity={0.5} color="#FFE8D2" />
+      <ambientLight intensity={1.5} />
+      <hemisphereLight args={['#FFFFFF', '#F3EDE6', 1.1]} />
+      <directionalLight position={[3, 4, 6]} intensity={1.8} />
+      <directionalLight position={[-4, -2, 4]} intensity={0.6} color="#FFF4EA" />
       <Tag progressRef={progressRef} />
     </Canvas>
   );
