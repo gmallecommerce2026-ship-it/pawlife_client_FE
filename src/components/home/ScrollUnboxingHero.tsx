@@ -2,12 +2,12 @@
 /* eslint-disable @next/next/no-img-element */
 // src/components/home/ScrollUnboxingHero.tsx
 // Hero cuộn theo tiến độ:
-//  - Hộp 3D nhìn từ trên xuống (InvitationBox) mở nắp, viên QR Tag 3D nằm giữa hộp
-//  - Tag bay ra khỏi hộp, tiến gần camera ở giữa banner, rồi mới bay cong sang trái/phải đan xen với chữ, đĩa tự lật theo tiến độ cuộn
+//  - Hộp cam mở nắp, viên QR Tag 3D (QrTag3DCanvas) nhô ra khỏi hộp
+//  - Tag bay cong sang trái/phải đan xen với chữ, đĩa tự lật theo tiến độ cuộn
 //  - Chữ hiện bằng mặt nạ kéo, mỗi bên một hướng
 //  - Nghiêng theo chuột (máy tính) và tốc độ cuộn; chỉ báo tiến độ có số chương
 
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
@@ -20,9 +20,7 @@ import {
   useSpring,
   useTransform,
   useVelocity,
-  type MotionValue,
 } from 'framer-motion';
-import { InvitationBox } from '@/components/invitation/box/InvitationBox';
 
 // Canvas 3D chỉ chạy trên trình duyệt
 const QrTag3DCanvas = dynamic(() => import('./QrTag3DCanvas'), { ssr: false });
@@ -35,10 +33,8 @@ const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 
-// Hộp 8 cm chiếm 80% màn cảnh; tag ≈ 3.2 cm = 40% cạnh hộp → 32% màn cảnh (tỉ lệ thật)
-const TAG_BOX = 32;
-// Hộp nghiêng nhìn từ trên-trước để thấy độ dày thành; tag nằm trên đáy nên nghiêng theo, rồi dựng đứng khi bay ra
-const BOX_TILT = 30;
+// Canvas 3D chiếm 56% chiều rộng màn cảnh, nên đơn vị y của quỹ đạo tính theo chiều cao đó
+const TAG_BOX = 56;
 const toY = (c: number) => (c - (50 + TAG_BOX / 2)) / (TAG_BOX / 100);
 
 const FEATURES = [
@@ -91,16 +87,11 @@ const POS: Record<Side, string> = {
 /* ------------------------------------------------------------------ */
 const SIDE_X = 62;  // lệch sang trái/phải (% chiều rộng tag)
 const SIDE_C = 36;  // tâm dọc khi đứng bên
-const P_CENTER = { x: 0, y: toY(50) }; // giữa hộp = giữa banner
+const P_INSIDE = { x: 0, y: toY(40) };
+const P_LIFT = { x: 0, y: toY(24) };
 const P_RIGHT = { x: SIDE_X, y: toY(SIDE_C) };
 const P_LEFT = { x: -SIDE_X, y: toY(SIDE_C) };
 const P_CTA = { x: 0, y: toY(46) };
-
-// Mốc tiến độ của chuỗi mở đầu
-const T_LID: [number, number] = [0.06, 0.24]; // nắp mở 0 → 100°
-const T_SHOW: [number, number] = [0.19, 0.22]; // vòng hiện ra khi nắp đã hở đủ
-const T_RISE: [number, number] = [0.25, 0.4]; // vòng bay ra khỏi hộp, tiến gần camera
-const T_BOX_OUT: [number, number] = [0.44, 0.6]; // hộp mờ dần
 
 type Pt = { t: number; x: number; y: number };
 function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number; y: number }, lift: number, steps = 12): Pt[] {
@@ -116,9 +107,10 @@ function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number
 }
 
 const PATH: Pt[] = [
-  { t: 0, ...P_CENTER },
-  { t: T_RISE[1], ...P_CENTER }, // nằm giữa hộp rồi nâng lên tại chỗ (chỉ phóng to, không đổi vị trí)
-  ...arc(T_RISE[1], 0.5, P_CENTER, P_RIGHT, 16).slice(1),
+  { t: 0, ...P_INSIDE },
+  { t: 0.12, ...P_INSIDE },
+  ...arc(0.12, 0.38, P_INSIDE, P_LIFT, 0, 8).slice(1),
+  ...arc(0.38, 0.5, P_LIFT, P_RIGHT, 16).slice(1),
   ...arc(0.5, 0.62, P_RIGHT, P_LEFT, 34).slice(1),
   { t: 0.8, ...P_LEFT },
   ...arc(0.8, 0.9, P_LEFT, P_CTA, 22).slice(1),
@@ -219,39 +211,10 @@ function ChapterBody({ c, index }: { c: Chapter; index: number }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  HỘP: chỉ component này render lại khi nắp chuyển động              */
-/* ------------------------------------------------------------------ */
-function ScrollBox({ open, size }: { open: MotionValue<number>; size: number }) {
-  const [v, setV] = useState(open.get());
-  useMotionValueEvent(open, 'change', (n) => setV(n));
-  return (
-    <InvitationBox
-      progress={v}
-      size={size}
-      color={COLOR.brand}
-      lining="#FFFDF9"
-      logo={<img src={BRAND_LOGO} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
-      tilt={BOX_TILT}
-    />
-  );
-}
-
-/* ------------------------------------------------------------------ */
 export default function ScrollUnboxingHero() {
   const containerRef = useRef<HTMLElement>(null);
   const progressRef = useRef(0); // tiến độ cuộn, đọc trong vòng lặp render 3D
-  const sceneRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
-  const [boxSize, setBoxSize] = useState(330);
-
-  // Hộp co giãn theo bề rộng cảnh (78vw, tối đa 420px)
-  useEffect(() => {
-    const el = sceneRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => setBoxSize(Math.round(e.contentRect.width * 0.8)));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
@@ -263,24 +226,18 @@ export default function ScrollUnboxingHero() {
     setActive((prev) => (prev === idx ? prev : idx));
   });
 
-  /* Hộp: tiến độ mở nắp (0 → 1), sau đó mờ dần */
-  const lidOpen = useTransform(p, [T_LID[0], T_LID[1]], [0, 1], { clamp: true });
-  const boxOpacity = useTransform(p, T_BOX_OUT, [1, 0]);
-  const boxY = useTransform(p, T_BOX_OUT, ['0%', '26%']);
-  const boxX = useTransform(p, T_BOX_OUT, ['0%', '-26%']);
-  const boxScale = useTransform(p, T_BOX_OUT, [1, 0.88]);
+  /* Hộp */
+  const lidRot = useTransform(p, [0.1, 0.19, 0.26, 0.36], [0, -125, -96, -112]);
+  const boxOpacity = useTransform(p, [0.44, 0.6], [1, 0]);
+  const boxY = useTransform(p, [0.44, 0.6], ['0%', '40%']);
+  const boxX = useTransform(p, [0.44, 0.6], ['0%', '-30%']);
+  const shadowOpacity = useTransform(p, [0.44, 0.6], [0.3, 0]);
 
-  /* Tag: hiện khi nắp hở, nằm giữa hộp, rồi tiến gần camera ở giữa banner */
-  const tagOpacity = useTransform(p, T_SHOW, [0, 1]);
+  /* Tag: quỹ đạo + cắt khi còn trong hộp */
+  const tagOpacity = useTransform(p, [0.08, 0.16], [0, 1]);
   const tagX = useTransform(p, PATH_T, PATH_X);
   const tagY = useTransform(p, PATH_T, PATH_Y);
-  // Tag nằm trên đáy hộp (nghiêng theo hộp), rồi được nâng lên theo trục Z và dựng đứng về phía camera
-  const tagRotX = useTransform(p, [T_SHOW[0], T_RISE[1]], [BOX_TILT, 0]);
-  const tagZ = useTransform(p, [T_RISE[0], T_RISE[1]], [0, 160]);
-  // bóng trên đáy hộp: đậm khi tag còn nằm sát, nhạt và lệch xa khi tag đã nâng lên
-  const tagShadowOpacity = useTransform(p, [T_RISE[0], T_RISE[1], T_BOX_OUT[1]], [0.35, 0.15, 0]);
-  const tagShadowY = useTransform(p, T_RISE, ['4%', '14%']);
-  const tagShadowScale = useTransform(p, T_RISE, [0.9, 0.7]);
+  const tagScale = useTransform(p, [0.12, 0.38, 0.5, 0.62, 0.9, 1], [0.94, 1.02, 1.05, 1.05, 1.1, 1.1]);
 
   /* Nghiêng theo chuột và tốc độ cuộn */
   const mx = useMotionValue(0);
@@ -313,24 +270,48 @@ export default function ScrollUnboxingHero() {
         </div>
 
         {/* Cảnh: nghiêng theo chuột/cuộn */}
-        <div ref={sceneRef} className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0" style={{ aspectRatio: '1 / 1', perspective: 1000 }}>
-          <motion.div className="absolute inset-0" style={{ rotateX: sceneRotX, rotateY: sceneRotY, transformStyle: 'preserve-3d' }}>
-            {/* Hộp 3D nhìn từ trên xuống */}
-            <motion.div className="absolute inset-0 flex items-center justify-center" style={{ opacity: boxOpacity, y: boxY, x: boxX, scale: boxScale }}>
-              <ScrollBox open={lidOpen} size={boxSize} />
+        <div className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0" style={{ aspectRatio: '1 / 1', perspective: 1000 }}>
+          <motion.div className="absolute inset-0" style={{ rotateX: sceneRotX, rotateY: sceneRotY }}>
+            <motion.div className="absolute bottom-[2%] left-[12%] right-[12%] h-[8%] rounded-full bg-black blur-xl" style={{ opacity: shadowOpacity }} />
+
+            {/* Lớp sau của hộp: vỏ, lòng hộp, lõm tròn đúng kích thước tag */}
+            <motion.div className="absolute inset-0" style={{ opacity: boxOpacity, y: boxY, x: boxX }}>
+              <div
+                className="absolute left-[6%] right-[6%] top-[26%] bottom-[4%] rounded-[18px]"
+                style={{ background: `linear-gradient(160deg, #F5AE72 0%, ${COLOR.brand} 45%, ${COLOR.brandDk} 100%)`, boxShadow: '0 20px 50px -12px rgba(0,0,0,0.35)' }}
+              />
+              <div className="absolute left-[10%] right-[10%] top-[24%] h-[24%] rounded-md bg-[#F7F4F1]" />
+              <div
+                className="absolute left-1/2 top-[40%] aspect-square w-[34%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  background: 'radial-gradient(circle at 50% 40%, #E6DED5 0%, #F2EDE7 75%)',
+                  boxShadow: 'inset 0 6px 14px rgba(0,0,0,0.18), inset 0 -2px 4px rgba(255,255,255,0.8)',
+                }}
+              />
             </motion.div>
 
-            {/* Tag 3D: nằm giữa hộp, bay ra gần camera rồi đi theo quỹ đạo */}
+            {/* Tag 3D: nằm trên lòng hộp, dưới thành trước của hộp */}
             <motion.div
               className="absolute left-0 right-0 mx-auto aspect-square"
-              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, z: tagZ, rotateX: tagRotX, opacity: tagOpacity }}
+              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, scale: tagScale, opacity: tagOpacity }}
             >
-              <motion.div
-                aria-hidden
-                className="absolute rounded-full bg-black blur-xl"
-                style={{ left: '34%', right: '34%', top: '34%', bottom: '34%', opacity: tagShadowOpacity, y: tagShadowY, scale: tagShadowScale }}
-              />
               <QrTag3DCanvas progressRef={progressRef} />
+            </motion.div>
+
+            {/* Lớp trước của hộp: thành trước và nắp (nắp có perspective để lật) */}
+            <motion.div className="absolute inset-0" style={{ opacity: boxOpacity, y: boxY, x: boxX, perspective: 900 }}>
+              <div
+                className="absolute left-[6%] right-[6%] top-[46%] bottom-[4%] rounded-b-[18px]"
+                style={{ background: `linear-gradient(160deg, #F5AE72 0%, ${COLOR.brand} 45%, ${COLOR.brandDk} 100%)` }}
+              >
+                <div className="absolute left-1/2 top-[30%] flex h-[40%] w-[44%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 shadow">
+                  <img src={BRAND_LOGO} alt="" className="h-[60%] w-auto" />
+                </div>
+              </div>
+              <motion.div
+                className="absolute left-[4%] right-[4%] top-[22%] h-[24%] rounded-[16px] shadow-md"
+                style={{ rotateX: lidRot, transformOrigin: 'top center', background: `linear-gradient(180deg, #F7B77F 0%, ${COLOR.brand} 100%)` }}
+              />
             </motion.div>
           </motion.div>
         </div>
