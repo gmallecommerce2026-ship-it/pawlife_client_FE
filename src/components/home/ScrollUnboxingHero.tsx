@@ -1,15 +1,14 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 // src/components/home/ScrollUnboxingHero.tsx
-// Hero cuộn theo tiến độ, dựng bằng code (không dùng video).
-//  1. Nắp hộp nảy khi mở, hộp trượt xuống và lệch sang trái khi rời màn
-//  2. Tag nhô lên, bay cong ra giữa màn
-//  3. Tag bay cong sang bên đối diện chữ (đan xen trái/phải), vòng qua đỉnh khi đổi bên
-//  4. Lật có dải sáng trượt qua mặt tag; mặt sau là thẻ Pet ID
-//  5. Chữ hiện bằng mặt nạ kéo từ phía tag đi ra, mỗi bên một hướng
-//  6. Nghiêng theo chuột (máy tính) và theo tốc độ cuộn; chỉ báo tiến độ có số chương
+// Hero cuộn theo tiến độ:
+//  - Hộp cam mở nắp, viên QR Tag 3D (QrTag3DCanvas) nhô ra khỏi hộp
+//  - Tag bay cong sang trái/phải đan xen với chữ, đĩa tự lật theo tiến độ cuộn
+//  - Chữ hiện bằng mặt nạ kéo, mỗi bên một hướng
+//  - Nghiêng theo chuột (máy tính) và tốc độ cuộn; chỉ báo tiến độ có số chương
 
 import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
 import {
@@ -24,14 +23,20 @@ import {
   useVelocity,
 } from 'framer-motion';
 
+// Canvas 3D chỉ chạy trên trình duyệt
+const QrTag3DCanvas = dynamic(() => import('./QrTag3DCanvas'), { ssr: false });
+
 /* ------------------------------------------------------------------ */
 /*  CẤU HÌNH                                                           */
 /* ------------------------------------------------------------------ */
-export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg'; // logo tạm
-const TAG_SRC = '/images/qr-tag-only.webp';
+export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
 const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
+
+// Canvas 3D chiếm 56% chiều rộng màn cảnh, nên đơn vị y của quỹ đạo tính theo chiều cao đó
+const TAG_BOX = 56;
+const toY = (c: number) => (c - (50 + TAG_BOX / 2)) / (TAG_BOX / 100);
 
 const FEATURES = [
   { icon: History, title: 'PawHistory', text: 'Lưu trữ hồ sơ sức khoẻ' },
@@ -49,7 +54,6 @@ type Chapter = {
   cta?: boolean;
 };
 
-// Đan xen trái/phải: chữ bên nào thì tag ở bên kia
 const CHAPTERS: Chapter[] = [
   {
     range: [0, 0.14],
@@ -80,25 +84,21 @@ const POS: Record<Side, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  QUỸ ĐẠO CỦA TAG                                                    */
-/*  Vị trí tâm tag tính theo % màn cảnh (c); x theo % chiều rộng tag.  */
-/*  Tag cao 46% màn cảnh nên đổi c sang y: (c - 73) / 0.46              */
+/*  QUỸ ĐẠO CỦA TAG (cong, không đi thẳng)                             */
 /* ------------------------------------------------------------------ */
-const toY = (c: number) => (c - 73) / 0.46;
-const SIDE_X = 62;          // tag lệch sang trái/phải bao nhiêu (% chiều rộng tag)
-const SIDE_C = 36;          // tâm dọc khi tag đứng bên
-const P_INSIDE = { x: 0, y: toY(40) };   // trong hộp
-const P_LIFT = { x: 0, y: toY(24) };     // nhô lên khỏi hộp
+const SIDE_X = 62;  // lệch sang trái/phải (% chiều rộng tag)
+const SIDE_C = 36;  // tâm dọc khi đứng bên
+const P_INSIDE = { x: 0, y: toY(40) };
+const P_LIFT = { x: 0, y: toY(24) };
 const P_RIGHT = { x: SIDE_X, y: toY(SIDE_C) };
 const P_LEFT = { x: -SIDE_X, y: toY(SIDE_C) };
-const P_CTA = { x: 0, y: toY(46) };      // đứng giữa ở chương cuối
+const P_CTA = { x: 0, y: toY(46) };
 
 type Pt = { t: number; x: number; y: number };
-/** Đường cong từ a đến b trong khoảng tiến độ [t0, t1]; lift là độ vồng lên (đơn vị y) */
 function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number; y: number }, lift: number, steps = 12): Pt[] {
   return Array.from({ length: steps + 1 }, (_, i) => {
     const u = i / steps;
-    const e = u * u * (3 - 2 * u); // ease in-out
+    const e = u * u * (3 - 2 * u);
     return {
       t: t0 + (t1 - t0) * u,
       x: a.x + (b.x - a.x) * e,
@@ -110,11 +110,11 @@ function arc(t0: number, t1: number, a: { x: number; y: number }, b: { x: number
 const PATH: Pt[] = [
   { t: 0, ...P_INSIDE },
   { t: 0.12, ...P_INSIDE },
-  ...arc(0.12, 0.38, P_INSIDE, P_LIFT, 0, 8).slice(1),      // nhô lên khỏi hộp
-  ...arc(0.38, 0.5, P_LIFT, P_RIGHT, 16).slice(1),           // vòng sang phải
-  ...arc(0.5, 0.62, P_RIGHT, P_LEFT, 34).slice(1),           // vòng qua đỉnh sang trái
-  { t: 0.8, ...P_LEFT },                                     // giữ bên trái
-  ...arc(0.8, 0.9, P_LEFT, P_CTA, 22).slice(1),              // về giữa
+  ...arc(0.12, 0.38, P_INSIDE, P_LIFT, 0, 8).slice(1),
+  ...arc(0.38, 0.5, P_LIFT, P_RIGHT, 16).slice(1),
+  ...arc(0.5, 0.62, P_RIGHT, P_LEFT, 34).slice(1),
+  { t: 0.8, ...P_LEFT },
+  ...arc(0.8, 0.9, P_LEFT, P_CTA, 22).slice(1),
   { t: 1, ...P_CTA },
 ];
 const PATH_T = PATH.map((q) => q.t);
@@ -125,9 +125,9 @@ const PATH_Y = PATH.map((q) => `${q.y}%`);
 /*  CHỮ: mặt nạ kéo từ phía tag đi ra                                 */
 /* ------------------------------------------------------------------ */
 const MASK_FROM: Record<Side, string> = {
-  left: 'inset(0% 100% 0% 0%)',   // chữ bên trái lộ ra từ trái sang phải
-  right: 'inset(0% 0% 0% 100%)',  // chữ bên phải lộ ra từ phải sang trái
-  center: 'inset(0% 0% 100% 0%)', // chữ giữa lộ ra từ trên xuống
+  left: 'inset(0% 100% 0% 0%)',
+  right: 'inset(0% 0% 0% 100%)',
+  center: 'inset(0% 0% 100% 0%)',
 };
 const MASK_TO = 'inset(0% 0% 0% 0%)';
 
@@ -214,41 +214,35 @@ function ChapterBody({ c, index }: { c: Chapter; index: number }) {
 /* ------------------------------------------------------------------ */
 export default function ScrollUnboxingHero() {
   const containerRef = useRef<HTMLElement>(null);
+  const progressRef = useRef(0); // tiến độ cuộn, đọc trong vòng lặp render 3D
   const [active, setActive] = useState(0);
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
 
   useMotionValueEvent(p, 'change', (v) => {
+    progressRef.current = v;
     let idx = 0;
     CHAPTERS.forEach((c, i) => { if (v >= c.range[0] - 0.01) idx = i; });
     setActive((prev) => (prev === idx ? prev : idx));
   });
 
-  /* --- 1. Hộp --- */
-  // Nắp nảy: mở quá một chút rồi về lại
+  /* Hộp */
   const lidRot = useTransform(p, [0.1, 0.19, 0.26, 0.36], [0, -125, -96, -112]);
-  // Hộp rời màn: trượt xuống và lệch sang trái, mờ dần
   const boxOpacity = useTransform(p, [0.44, 0.6], [1, 0]);
   const boxY = useTransform(p, [0.44, 0.6], ['0%', '40%']);
   const boxX = useTransform(p, [0.44, 0.6], ['0%', '-30%']);
   const shadowOpacity = useTransform(p, [0.44, 0.6], [0.3, 0]);
 
-  /* --- 2 & 3. Tag: quỹ đạo --- */
+  /* Tag: quỹ đạo + cắt khi còn trong hộp */
   const tagOpacity = useTransform(p, [0.08, 0.16], [0, 1]);
   const tagX = useTransform(p, PATH_T, PATH_X);
   const tagY = useTransform(p, PATH_T, PATH_Y);
   const tagScale = useTransform(p, [0.12, 0.38, 0.5, 0.62, 0.9, 1], [0.94, 1.02, 1.05, 1.05, 1.1, 1.1]);
-  // Phần tag nằm dưới miệng hộp bị cắt khi còn trong hộp
-  const clipBottom = useTransform(p, [0.12, 0.3], [41, 0]);
+  const clipBottom = useTransform(p, [0.12, 0.3], [43, 0]);
   const tagClip = useMotionTemplate`inset(0 0 ${clipBottom}% 0)`;
 
-  /* --- 4. Lật + dải sáng --- */
-  const tagFlip = useTransform(p, [0.38, 0.5, 0.62, 0.8, 0.9, 1], [0, 180, 360, 360, 540, 720]);
-  const tagTilt = useTransform(p, [0.38, 0.46, 0.56, 0.62, 0.8, 0.9, 1], [0, 10, -8, 0, 0, 8, 0]);
-  const sheenPos = useTransform(tagFlip, [0, 180, 360, 540, 720], ['150% 0', '-50% 0', '150% 0', '-50% 0', '150% 0']);
-
-  /* --- 6. Nghiêng theo chuột và tốc độ cuộn --- */
+  /* Nghiêng theo chuột và tốc độ cuộn */
   const mx = useMotionValue(0);
   const my = useMotionValue(0);
   const sx = useSpring(mx, { stiffness: 70, damping: 20 });
@@ -266,36 +260,22 @@ export default function ScrollUnboxingHero() {
   const chapter = CHAPTERS[active];
 
   return (
-    <section
-      ref={containerRef}
-      onMouseMove={onPointerMove}
-      className="relative h-[330svh] w-full"
-      style={{ backgroundColor: COLOR.cream }}
-      aria-label="Giới thiệu QR Tag"
-    >
+    <section ref={containerRef} onMouseMove={onPointerMove} className="relative h-[330svh] w-full" style={{ backgroundColor: COLOR.cream }} aria-label="Giới thiệu QR Tag">
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
         <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: p, backgroundColor: COLOR.brand }} />
 
-        {/* Chỉ báo tiến độ: ngang trên điện thoại, dọc bên phải trên máy tính */}
+        {/* Chỉ báo tiến độ */}
         <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2 lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:translate-x-0 lg:-translate-y-1/2 lg:flex-col">
           {CHAPTERS.map((c, i) => (
-            <span
-              key={c.eyebrow}
-              className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? 'w-6' : 'w-1.5'}`}
-              style={{ backgroundColor: i === active ? COLOR.brand : '#D1D5DB' }}
-            />
+            <span key={c.eyebrow} className={`h-1.5 rounded-full transition-all duration-500 ${i === active ? 'w-6' : 'w-1.5'}`} style={{ backgroundColor: i === active ? COLOR.brand : '#D1D5DB' }} />
           ))}
         </div>
 
-        {/* Mặt nhìn 3D: nghiêng theo chuột/cuộn */}
+        {/* Cảnh: nghiêng theo chuột/cuộn */}
         <div className="relative w-[min(78vw,420px)] -translate-y-[6svh] lg:translate-y-0" style={{ aspectRatio: '1 / 1', perspective: 1000 }}>
           <motion.div className="absolute inset-0" style={{ rotateX: sceneRotX, rotateY: sceneRotY, transformStyle: 'preserve-3d' }}>
-            {/* Bóng dưới hộp */}
-            <motion.div
-              className="absolute bottom-[2%] left-[12%] right-[12%] h-[8%] rounded-full bg-black blur-xl"
-              style={{ opacity: shadowOpacity }}
-            />
+            <motion.div className="absolute bottom-[2%] left-[12%] right-[12%] h-[8%] rounded-full bg-black blur-xl" style={{ opacity: shadowOpacity }} />
 
             {/* Hộp */}
             <motion.div className="absolute inset-0" style={{ opacity: boxOpacity, y: boxY, x: boxX }}>
@@ -314,56 +294,18 @@ export default function ScrollUnboxingHero() {
               />
             </motion.div>
 
-            {/* Tag: hai mặt, quỹ đạo cong, lật bằng rotateY */}
+            {/* Tag 3D: vị trí theo quỹ đạo, phần dưới miệng hộp bị cắt */}
             <motion.div
-              className="absolute left-0 right-0 mx-auto w-[46%]"
-              style={{
-                top: '50%',
-                x: tagX,
-                y: tagY,
-                scale: tagScale,
-                rotateY: tagFlip,
-                rotateX: tagTilt,
-                opacity: tagOpacity,
-                transformStyle: 'preserve-3d',
-              }}
+              className="absolute left-0 right-0 mx-auto aspect-square"
+              style={{ width: `${TAG_BOX}%`, top: '50%', x: tagX, y: tagY, scale: tagScale, opacity: tagOpacity }}
             >
-              <motion.div style={{ clipPath: tagClip, backfaceVisibility: 'hidden' }}>
-                <img src={TAG_SRC} alt="QR Tag" className="w-full select-none" style={{ filter: 'drop-shadow(0 18px 24px rgba(0,0,0,0.18))' }} />
+              <motion.div className="h-full w-full" style={{ clipPath: tagClip }}>
+                <QrTag3DCanvas progressRef={progressRef} />
               </motion.div>
-
-              {/* Mặt sau */}
-              <div
-                className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-full text-center"
-                style={{
-                  transform: 'rotateY(180deg)',
-                  backfaceVisibility: 'hidden',
-                  background: 'radial-gradient(circle at 30% 25%, #FFFFFF, #FFE7D0 70%)',
-                  boxShadow: '0 18px 24px rgba(0,0,0,0.18)',
-                }}
-              >
-                <img src={BRAND_LOGO} alt="" className="w-[38%]" />
-                <p className="text-[13px] font-bold" style={{ color: COLOR.ink }}>Pet ID</p>
-                <p className="w-[70%] text-[10px] leading-tight" style={{ color: COLOR.muted }}>Một danh tính riêng cho bé</p>
-              </div>
-
-              {/* Dải sáng trượt qua khi lật */}
-              <motion.div
-                className="pointer-events-none absolute inset-0 rounded-full"
-                style={{
-                  transform: 'translateZ(1px)',
-                  backgroundImage: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.8) 50%, transparent 65%)',
-                  backgroundSize: '250% 100%',
-                  backgroundPosition: sheenPos,
-                  backgroundRepeat: 'no-repeat',
-                  mixBlendMode: 'soft-light',
-                }}
-              />
             </motion.div>
           </motion.div>
         </div>
 
-        {/* Chương chữ */}
         <AnimatePresence mode="wait">
           <motion.div
             key={active}
