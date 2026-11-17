@@ -17,6 +17,7 @@ import {
   makeRingGeometry,
   spinAt,
 } from './QrTag3DCanvas';
+import { RING_RADIUS } from './ringConfig';
 
 const FRONT_SRC = '/images/qr-tag-only.png';
 const RING_LOGO = '/images/qr-tag-only.png';
@@ -184,6 +185,58 @@ const SKIRT: Key[] = [[0, 0], [0.028, 1], [0.04, 1], [1, 1]];
 // Camera: lùi nhẹ rồi tiến về vòng ở giữa hành trình (dolly)
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
+
+/* Làm sạch ảnh mặt trước khi nạp.
+   Khe ghim giờ là lỗ xuyên thật trong hình học (rộng ~0.1 cm), nên mọi vệt "khe" có sẵn trong ảnh gốc đều thừa.
+   Ảnh gốc có thể có khe vẽ đen hoặc vùng trong suốt (RGB = 0 → hiện đen khi bỏ qua alpha); trước kia lỗ 3D rộng hơn nên che mất,
+   thu hẹp lỗ lại thì phần đó lộ ra thành vệt đen dưới khe. Cách xử lý:
+   1) lót nền trắng dưới ảnh → vùng trong suốt thành trắng thay vì đen;
+   2) trong dải phía dưới khe (trên mặt trước), điểm nào còn tối thì thay bằng màu lấy từ cùng góc nhưng sâu vào trong đĩa (nền trắng của tag).
+   Chỉ động tới điểm TỐI trong dải đó nên logo cam và phần còn lại của ảnh không bị ảnh hưởng. */
+const FRONT_FIX_R0 = 0.62;        // bán kính trong của dải kiểm tra (đơn vị tag, 1 = mép đĩa)
+const FRONT_FIX_R1 = 0.84;        // bán kính ngoài: mặt trước chỉ phủ tới r ≈ 0.84, ngoài đó là mép bo (không dùng ảnh)
+const FRONT_FIX_SPAN = 0.45;      // nửa bề rộng góc của dải quanh đỉnh đĩa (rad)
+const FRONT_FIX_SRC_R = 0.58;     // lấy màu nền ở bán kính này (trong đĩa, đã chắc là nền trắng)
+const FRONT_FIX_DARK = 100;       // điểm có kênh sáng nhất < ngưỡng này (0–255) coi là vệt tối cần xoá
+function cleanFrontImage(img: HTMLImageElement): HTMLCanvasElement {
+  const W = img.naturalWidth || img.width;
+  const H = img.naturalHeight || img.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  g.fillStyle = '#FFFFFF';
+  g.fillRect(0, 0, W, H);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, 0, 0, W, H);
+
+  // Chỉ đọc phần trên của ảnh (đỉnh đĩa, nơi có khe): hàng 0 → ~40% chiều cao
+  const R = RING_RADIUS;
+  const rows = Math.min(H, Math.ceil(H * 0.4));
+  const data = g.getImageData(0, 0, W, rows);
+  const d = data.data;
+  const px = (x: number) => Math.min(W - 1, Math.max(0, Math.floor((x / (2 * R) + 0.5) * W)));
+  const py = (y: number) => Math.min(rows - 1, Math.max(0, Math.floor((0.5 - y / (2 * R)) * H)));
+  for (let j = 0; j < rows; j++) {
+    const y = (0.5 - (j + 0.5) / H) * 2 * R;
+    for (let i = 0; i < W; i++) {
+      const o = (j * W + i) * 4;
+      if (Math.max(d[o], d[o + 1], d[o + 2]) >= FRONT_FIX_DARK) continue; // điểm sáng: giữ nguyên
+      const x = ((i + 0.5) / W - 0.5) * 2 * R;
+      const r = Math.hypot(x, y);
+      if (r < FRONT_FIX_R0 || r > FRONT_FIX_R1) continue;
+      const a = Math.atan2(y, x);
+      if (Math.abs(a - Math.PI / 2) > FRONT_FIX_SPAN) continue;
+      const so = (py(FRONT_FIX_SRC_R * Math.sin(a)) * W + px(FRONT_FIX_SRC_R * Math.cos(a))) * 4;
+      d[o] = d[so];
+      d[o + 1] = d[so + 1];
+      d[o + 2] = d[so + 2];
+      d[o + 3] = 255;
+    }
+  }
+  g.putImageData(data, 0, 0);
+  return canvas;
+}
 
 /* Vị trí logo trên mặt nắp (tỉ lệ theo cạnh texture): dùng chung cho màu, bản đồ bóng, nhám và bump để chúng khớp nhau từng điểm ảnh */
 const LOGO_POS = 0.33;
@@ -620,18 +673,17 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
   const [frontTex, setFrontTex] = useState<THREE.Texture>(() => makeFrontFallback());
   useEffect(() => {
     let alive = true;
-    new THREE.TextureLoader().load(
-      FRONT_SRC,
-      (t) => {
-        if (!alive) return;
-        t.colorSpace = THREE.SRGBColorSpace;
-        setFrontTex(t);
-      },
-      undefined,
-      () => {
-        /* Không có ảnh thật: giữ hình dự phòng */
-      },
-    );
+    const img = new Image();
+    img.onload = () => {
+      if (!alive) return;
+      const t = new THREE.CanvasTexture(cleanFrontImage(img)); // ảnh đã lót trắng và xoá vệt khe tối
+      t.colorSpace = THREE.SRGBColorSpace;
+      setFrontTex(t);
+    };
+    img.onerror = () => {
+      /* Không có ảnh thật: giữ hình dự phòng */
+    };
+    img.src = FRONT_SRC;
     return () => {
       alive = false;
     };
