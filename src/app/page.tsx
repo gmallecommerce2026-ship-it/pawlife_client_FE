@@ -6,6 +6,7 @@ import { motion, useReducedMotion, useInView, AnimatePresence, useAnimation, use
 import Link from "next/link";
 import axiosClient from "@/lib/api/axiosClient";
 import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
+import { fetchShelters, shelterCover, shelterSince, PublicShelter } from "@/lib/publicShelters";
 
 // ============================================================================
 // 0. CẤU HÌNH & HẰNG SỐ
@@ -98,21 +99,6 @@ const MOCK_PETS: Pet[] = [
     desc: "Bella là một cô chó husky xinh đẹp với đôi mắt xanh biếc. Bé rất thông minh, trung thành và thích đi dạo dài. Bella phù hợp với gia đình có lối sống năng động.",
     img: "https://images.unsplash.com/photo-1605568427561-40dd23c2acea?auto=format&fit=crop&w=800&q=80",
     tags: [{ label: "Đã tiêm phòng", ...TAG_COLORS[0] }, { label: "Đã triệt sản", ...TAG_COLORS[1] }, { label: "Thân thiện", ...TAG_COLORS[2] }, { label: "Yêu trẻ em", ...TAG_COLORS[3] }]
-  }
-];
-
-const MOCK_SHELTERS = [
-  {
-    name: "Mái Ấm Bốn Chân", location: "Hà Nội, Việt Nam", since: 2025,
-    desc: "Tổ chức phi lợi nhuận chuyên cứu hộ, chăm sóc và tìm nhà mới cho thú cưng bị bỏ rơi. Chúng tôi cung cấp dịch vụ y tế và hỗ trợ hành vi để các bé sẵn sàng về nhà mới.",
-    img: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80",
-    stats: [{ v: "47", l: "Bé chờ" }, { v: "214", l: "Đã nhận" }, { v: "94%", l: "Tỷ lệ" }]
-  },
-  {
-    name: "Trạm Cứu Hộ Sài Gòn", location: "TP. Hồ Chí Minh, Việt Nam", since: 2023,
-    desc: "Nơi trú ẩn an toàn cho động vật lang thang tại TP.HCM. Sứ mệnh của chúng tôi là chữa lành những vết thương cả về thể chất lẫn tinh thần cho các bé.",
-    img: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=800&q=80",
-    stats: [{ v: "62", l: "Bé chờ" }, { v: "310", l: "Đã nhận" }, { v: "89%", l: "Tỷ lệ" }]
   }
 ];
 
@@ -890,8 +876,23 @@ const PetsSection = () => {
 };
 
 const SheltersSection = () => {
-  const { index, dir, next, prev } = useCarousel(MOCK_SHELTERS.length);
-  const shelter = MOCK_SHELTERS[index];
+  const [items, setItems] = useState<PublicShelter[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetchShelters()
+      .then((all) => alive && setItems(all.filter((s) => s.isVerified)))
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const { index, dir, next, prev } = useCarousel(items.length);
+  const shelter = items[index];
+  if (!shelter) return null;
+
+  const since = shelterSince(shelter);
+  const img = shelterCover(shelter) || "/assets/piglet.png";
+  const desc = shelter.bio || shelter.description || "";
+  const stats = [{ v: String(shelter._count?.pets ?? 0), l: "Bé chờ" }];
 
   return (
     <section id="shelters" className="relative mx-auto mt-16 sm:mt-20 lg:mt-[100px] flex w-full max-w-[1392px] flex-col items-center px-6 lg:px-20">
@@ -900,24 +901,24 @@ const SheltersSection = () => {
 
       <SwipeArea onNext={next} onPrev={prev} className="w-full">
         <AnimatePresence mode="wait" custom={dir}>
-          <motion.div key={shelter.name} custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4 }}
+          <motion.div key={shelter.id} custom={dir} variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.4 }}
             className="flex w-full flex-col-reverse items-center gap-5 lg:flex-row lg:items-start lg:gap-10">
             <div className="flex w-full flex-col lg:w-[45%]">
               <div className="mb-3 flex items-center gap-3 lg:mb-4">
-                <img src={shelter.img} alt="Logo" className="h-12 w-12 rounded-full object-cover lg:h-14 lg:w-14" />
+                <img src={shelter.avatarUrl || "/assets/piglet.png"} alt="Logo" className="h-12 w-12 rounded-full object-cover lg:h-14 lg:w-14" />
                 <div>
                   <div className="flex items-center gap-1.5">
                     <h3 className="text-[18px] font-bold text-gray-900 lg:text-[20px]">{shelter.name}</h3><Icons.Verified />
                   </div>
                   <p className="mt-0.5 flex items-center gap-1 text-[12px] text-gray-500">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                    {shelter.location}
+                    {shelter.address}
                   </p>
                 </div>
               </div>
-              <ClampText text={shelter.desc} className="mb-3 text-[14px] leading-relaxed text-gray-600 lg:mb-6" />
-              <div className="mb-4 grid grid-cols-3 gap-3 lg:mb-6">
-                {shelter.stats.map((s: any) => (
+              {desc && <ClampText text={desc} className="mb-3 text-[14px] leading-relaxed text-gray-600 lg:mb-6" />}
+              <div className="mb-4 flex gap-6 lg:mb-6">
+                {stats.map((s) => (
                   <div key={s.l}><div className="text-[18px] font-bold text-gray-900 lg:text-[20px]">{s.v}</div><div className="mt-0.5 text-[11px] text-gray-500 lg:text-[12px]">{s.l}</div></div>
                 ))}
               </div>
@@ -926,25 +927,23 @@ const SheltersSection = () => {
                 <div className="mb-4 lg:mb-6">
                   <h4 className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 lg:text-[11px]">Trạng thái xác minh</h4>
                   <ul className="flex flex-col gap-2">
-                    {[`Xác minh từ ${shelter.since}`, "Báo cáo hoạt động", "Kiểm tra hậu nhận nuôi"].map((item) => (
-                      <li key={item} className="flex items-center gap-2 text-[13px] text-gray-600"><Icons.Dot /> {item}</li>
-                    ))}
+                    <li className="flex items-center gap-2 text-[13px] text-gray-600"><Icons.Dot /> {`Xác minh từ ${since}`}</li>
                   </ul>
                 </div>
               </MobileMore>
               <div className="flex gap-2.5 lg:gap-3">
-                <PrimaryBtn href={ROUTES.shelters}>Xem hồ sơ</PrimaryBtn>
+                <PrimaryBtn href={`${ROUTES.shelters}/${shelter.id}`}>Xem hồ sơ</PrimaryBtn>
                 <OutlineBtn href={ROUTES.shelters}>Tất cả trạm</OutlineBtn>
               </div>
             </div>
             <div className="w-full lg:w-[55%]">
-              <img src={shelter.img} alt="Shelter" className="h-[200px] w-full rounded-[24px] object-cover shadow-md sm:h-[300px] lg:h-[380px] lg:rounded-[32px] xl:h-[420px]" />
+              <img src={img} alt={shelter.name} className="h-[200px] w-full rounded-[24px] object-cover shadow-md sm:h-[300px] lg:h-[380px] lg:rounded-[32px] xl:h-[420px]" />
             </div>
           </motion.div>
         </AnimatePresence>
       </SwipeArea>
 
-      <CarouselPagination total={MOCK_SHELTERS.length} current={index} />
+      <CarouselPagination total={items.length} current={index} />
     </section>
   );
 };
