@@ -234,6 +234,30 @@ vec3 transformed = wp;`,
   return <mesh geometry={geo} material={mat} receiveShadow />;
 }
 
+/* Bóng tiếp xúc (contact shadow): quầng tối mềm ngay dưới đáy hộp, làm hộp nổi trên bàn */
+function ContactShadow() {
+  const tex = useMemo(() => {
+    const S = 512;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(S / 2, S / 2, S * 0.2, S / 2, S / 2, S * 0.5);
+    grad.addColorStop(0, 'rgba(20,28,12,0.6)');
+    grad.addColorStop(0.6, 'rgba(20,28,12,0.25)');
+    grad.addColorStop(1, 'rgba(20,28,12,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+    return new THREE.CanvasTexture(c);
+  }, []);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y + 0.004, 0]}>
+      <planeGeometry args={[B * 1.7, B * 1.7]} />
+      <meshBasicMaterial map={tex} transparent depthWrite={false} />
+    </mesh>
+  );
+}
+
 /* Đồ trang trí nhỏ đặt ở rìa: viên đá, không chắn hộp */
 function DeskProps() {
   const stoneMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#8E8377', roughness: 0.95 }), []);

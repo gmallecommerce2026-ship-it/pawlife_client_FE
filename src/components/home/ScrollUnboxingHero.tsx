@@ -3,7 +3,7 @@
 // Hero cuộn 6 chương. Hộp và vòng nằm trong một cảnh 3D duy nhất (UnboxingScene);
 // phần này chỉ lo chữ, chỉ báo tiến độ và đọc tiến độ cuộn.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
@@ -182,6 +182,10 @@ export default function ScrollUnboxingHero() {
     setDot((prev) => (prev === d ? prev : d));
   });
 
+  // Chỉ dựng nội dung động sau khi vào trình duyệt, tránh lệch HTML giữa máy chủ và trình duyệt
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const chapter = active >= 0 ? CHAPTERS[active] : null;
   const barScale = useTransform(p, [0, 1], [0, 1]);
 
@@ -193,9 +197,11 @@ export default function ScrollUnboxingHero() {
         <div aria-hidden className="pointer-events-none absolute inset-0 z-[1]" style={{ background: 'radial-gradient(ellipse 75% 65% at 50% 45%, rgba(0,0,0,0) 45%, rgba(40,22,10,0.55) 100%)' }} />
 
         {/* Cảnh 3D duy nhất: hộp + vòng */}
-        <div className="pointer-events-none absolute inset-0">
-          <UnboxingScene progressRef={progressRef} />
-        </div>
+        {mounted && (
+          <div className="pointer-events-none absolute inset-0">
+            <UnboxingScene progressRef={progressRef} />
+          </div>
+        )}
 
         <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: barScale, backgroundColor: COLOR.brand }} />
@@ -213,7 +219,7 @@ export default function ScrollUnboxingHero() {
 
         {/* Chữ: một chương tại một thời điểm, luôn ở phía đối diện với vòng */}
         <AnimatePresence mode="wait">
-          {chapter && active >= 0 && (
+          {mounted && chapter && active >= 0 && (
             <motion.div
               key={active}
               initial={{ opacity: 0, y: 14 }}
