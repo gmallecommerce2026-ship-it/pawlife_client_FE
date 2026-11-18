@@ -94,6 +94,8 @@ const skirtGeo = new THREE.ExtrudeGeometry(skirtShape, { depth: PAPER, bevelEnab
 /* Tam giác gài: cạnh đứng dính cả chiều cao đầu gờ, mũi nhọn hướng lên, dựng trong mặt XY (trục +x là hướng mũi khi mở phẳng) */
 const triShape = new THREE.Shape();
 triShape.moveTo(0, -SK);
+triShape.lineTo(TRI_L * 0.75, -SK);        // đáy dài hơn, lấp khe phía dưới
+triShape.lineTo(TRI_L, -SK * 0.45);        // vát chéo ở đầu cho giống tab gài
 triShape.lineTo(TRI_L, 0);
 triShape.lineTo(0, 0);
 triShape.closePath();
@@ -104,7 +106,7 @@ const triGeo = new THREE.ExtrudeGeometry(triShape, { depth: PAPER, bevelEnabled:
    Dựng trong mặt XY của shape (x shape = dọc theo hộp, y = chiều cao), xoay -90° quanh y khi đặt để thành tấm trong mặt YZ. */
 const XS = B / 2 - WALL - 0.01;            // mép ngoài của gờ bên: sát mặt trong thành bên (khe 0.2 mm)
 const SIDE_Z0 = 0.25;                      // đầu sau của gờ bên (tránh thành sau)
-const SIDE_Z1 = B - TRI_L - 0.05;          // đầu trước: dừng trước chỗ hai tam giác của gờ trước
+const SIDE_Z1 = B - TRI_L - 0.03;          // đầu trước: dừng trước chỗ hai tam giác của gờ trước
 const SIDE_R = 0.12;                       // bo tròn hai góc dưới
 const SIDE_OUT = 0.2;                      // góc hai gờ bên nở ra ngoài một chút khi nắp đã lật cao (rad, ~11°)
 const sideShape = new THREE.Shape();
