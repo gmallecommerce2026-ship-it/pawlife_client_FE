@@ -3,14 +3,12 @@
 // Hero cuộn 6 chương. Hộp và vòng nằm trong một cảnh 3D duy nhất (UnboxingScene);
 // phần này chỉ lo chữ, chỉ báo tiến độ và đọc tiến độ cuộn.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
-import { AnimatePresence, motion, useMotionValueEvent, useScroll, useSpring, useTransform } from 'framer-motion';
-
-import PhoneScanDemo, { type DemoStage } from './PhoneScanDemo';
+import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useSpring, useTransform } from 'framer-motion';
+import type { DemoStage } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
 
 export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
@@ -20,14 +18,7 @@ const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#1
 
 const DESK_BASE = '#CDB39A';
 
-/* Banner chỉ phát MỘT lần mỗi lần tải trang:
-   - cuộn hết banner rồi đi xuống thì banner mờ dần (FADE_END = phần quãng thoát khỏi màn hình mà banner đã mờ hết, 0–1);
-   - khi banner đã ra khỏi màn hình hoàn toàn và người dùng dừng cuộn, banner bị gỡ khỏi trang (và bù lại vị trí cuộn để nội dung không nhảy);
-   - từ đó cuộn ngược lên không còn banner; chỉ tải lại trang (F5) mới hiện lại.
-   Biến cấp module (không dùng localStorage) nên sống qua chuyển trang kiểu SPA nhưng mất khi tải lại. */
-let heroDismissed = false;
-const FADE_END = 0.75;
-const IDLE_MS = 160; // dừng cuộn bao lâu thì mới gỡ banner (gỡ lúc đang quán tính cuộn trên mobile sẽ làm khựng)
+// dừng cuộn bao lâu thì mới gỡ banner (gỡ lúc đang quán tính cuộn trên mobile sẽ làm khựng)
 const FEATURES = [
   { icon: History, title: 'PawHistory', text: 'Lưu trữ hồ sơ sức khoẻ' },
   { icon: Fingerprint, title: 'Pet ID', text: 'Một danh tính riêng cho bé' },
@@ -200,8 +191,8 @@ function ChapterBody({ c, index, total }: { c: Chapter; index: number; total: nu
   );
 }
 
-function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number) => void }) {
-  const containerRef = useRef<HTMLElement>(null);
+function ScrollUnboxingHeroBody({ sectionRef, onStageChange }: { sectionRef: RefObject<HTMLElement | null>; onStageChange?: (s: DemoStage) => void }) {
+  const containerRef = sectionRef;
   const progressRef = useRef(0); // tiến độ cuộn, đọc trong cảnh 3D
   const spinRef = useRef(0);  // tiến độ cuộn, đọc trong cảnh 3D
   const [active, setActive] = useState(-1); // chương đang hiện chữ, -1 = không có chữ
@@ -270,11 +261,16 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  useEffect(() => {
+    onStageChange?.(stage);
+  }, [stage, onStageChange]);
+  const heroInView = useInView(containerRef, { margin: '200px 0px 200px 0px' });
+
   const chapter = active >= 0 ? CHAPTERS[active] : null;
   const barScale = useTransform(p, [0, 1], [0, 1]);
 
   return (
-    <motion.section ref={containerRef} className="relative h-[600svh] w-full" style={{ backgroundColor: DESK_BASE, opacity: fade }} aria-label="Giới thiệu QR Tag">
+    <motion.section ref={containerRef} className="relative h-[600svh] w-full" style={{ backgroundColor: DESK_BASE }} aria-label="Giới thiệu QR Tag">
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
 
         {/* Vignette: mép khung tối hơn, trung tâm sáng hơn */}
@@ -283,12 +279,10 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
         {/* Cảnh 3D duy nhất: hộp + vòng */}
         {mounted && (
           <div className="pointer-events-none absolute inset-0">
-            <UnboxingScene progressRef={progressRef} spinRef={spinRef} />
+            <UnboxingScene progressRef={progressRef} spinRef={spinRef} paused={!heroInView} />
           </div>
         )}
 
-        {/* iPhone quét QR → màn hình Scanned Pet */}
-        <PhoneScanDemo stage={stage} />
 
         <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: barScale, backgroundColor: COLOR.brand }} />
@@ -324,29 +318,6 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   );
 }
 
-export default function ScrollUnboxingHero() {
-  const [gone, setGone] = useState(heroDismissed);
-
-  const handlePassed = useCallback((sectionHeight: number) => {
-    const html = document.documentElement;
-    const prevAnchor = html.style.overflowAnchor;
-    const prevBehavior = html.style.scrollBehavior;
-    const y = window.scrollY;
-    // Tắt scroll anchoring (tránh trình duyệt tự bù lần nữa) và smooth scroll (trang có html { scroll-behavior: smooth }) trong lúc đổi chỗ
-    html.style.overflowAnchor = 'none';
-    html.style.scrollBehavior = 'auto';
-    heroDismissed = true;
-    flushSync(() => setGone(true)); // gỡ banner ngay, đồng bộ
-    // Banner nằm hẳn phía trên màn hình nên bù đúng chiều cao nó chiếm: nội dung đang xem giữ nguyên vị trí, không nhảy
-    window.scrollTo(0, Math.max(0, y - sectionHeight));
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        html.style.overflowAnchor = prevAnchor;
-        html.style.scrollBehavior = prevBehavior;
-      }),
-    );
-  }, []);
-
-  if (gone) return null;
-  return <ScrollUnboxingHeroBody onPassed={handlePassed} />;
+export default function ScrollUnboxingHero({ sectionRef, onStageChange }: { sectionRef: RefObject<HTMLElement | null>; onStageChange?: (s: DemoStage) => void }) {
+  return <ScrollUnboxingHeroBody sectionRef={sectionRef} onStageChange={onStageChange} />;
 }

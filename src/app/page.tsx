@@ -1,9 +1,10 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, type RefObject } from "react";
 import { motion, useReducedMotion, useInView, AnimatePresence, useAnimation, useMotionValue, animate } from "framer-motion";
 import ScrollUnboxingHero from "@/components/home/ScrollUnboxingHero";
+import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H } from "@/components/home/PhoneScanDemo";
 import Link from "next/link";
 import axiosClient from "@/lib/api/axiosClient";
 import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
@@ -444,10 +445,10 @@ export const HeaderSection = () => {
 
       <div className="relative mx-auto flex w-full items-center justify-between px-6 z-20 max-w-[1392px]">
         <BrandLogo />
-        
+
         {/* Khối bên phải (Bọc chung để tránh bị vỡ Flexbox trên Mobile) */}
         <div className="flex items-center gap-4">
-          
+
           {/* Desktop Nav */}
           <nav className="hidden items-center gap-8 lg:flex">
             {NAV_LINKS.map((l) => (
@@ -502,15 +503,15 @@ export const HeaderSection = () => {
             animate="open"
             exit="closed"
             variants={{
-              closed: { 
-                opacity: 0, 
-                height: 0, 
-                transition: { duration: 0.3, staggerChildren: 0.05, staggerDirection: -1 } 
+              closed: {
+                opacity: 0,
+                height: 0,
+                transition: { duration: 0.3, staggerChildren: 0.05, staggerDirection: -1 }
               },
-              open: { 
-                opacity: 1, 
-                height: "auto", 
-                transition: { duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98], staggerChildren: 0.1, delayChildren: 0.1 } 
+              open: {
+                opacity: 1,
+                height: "auto",
+                transition: { duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98], staggerChildren: 0.1, delayChildren: 0.1 }
               }
             }}
             className="absolute top-full left-0 w-full overflow-hidden lg:hidden z-10"
@@ -519,7 +520,7 @@ export const HeaderSection = () => {
             <div className="bg-white/80 backdrop-blur-xl border-t border-white/50 shadow-[0_30px_60px_rgba(0,0,0,0.08)] px-6 py-6 rounded-b-[24px]">
               <div className="flex flex-col gap-2">
                 {NAV_LINKS.map((l) => (
-                  <motion.div 
+                  <motion.div
                     key={l.label}
                     variants={{
                       closed: { opacity: 0, y: -15, filter: "blur(4px)" },
@@ -535,7 +536,7 @@ export const HeaderSection = () => {
                     </Link>
                   </motion.div>
                 ))}
-                
+
                 {/* Nút Đăng nhập Mobile */}
                 <motion.div
                   variants={{
@@ -882,7 +883,7 @@ const SheltersSection = () => {
     let alive = true;
     fetchShelters()
       .then((all) => alive && setItems(all.filter((s) => s.isVerified)))
-      .catch(() => {});
+      .catch(() => { });
     return () => { alive = false; };
   }, []);
 
@@ -1075,7 +1076,7 @@ const PartnerLogosSection = () => (
   </section>
 );
 
-const DownloadAppSection = () => {
+const DownloadAppSection = ({ stage, heroRef }: { stage: DemoStage; heroRef: RefObject<HTMLElement | null> }) => {
   const phoneMockPets = [
     { name: "Max", gender: "male", info: "2 tuổi · G. Retriever", id: "QR-001234", img: "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=300&q=80", status: "Available", statusColor: "bg-green-100 text-green-700", dot: "bg-green-500" },
     { name: "Luna", gender: "female", info: "1 tuổi · L. Retriever", id: "QR-001235", img: "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&w=300&q=80", status: "Pending", statusColor: "bg-yellow-100 text-yellow-700", dot: "bg-yellow-500" },
@@ -1085,9 +1086,10 @@ const DownloadAppSection = () => {
 
   return (
     <section className="mx-auto mt-16 sm:mt-20 lg:mt-[100px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center justify-between gap-10 px-6 lg:flex-row lg:gap-20">
-      <div className="relative flex-shrink-0 flex items-center justify-center">
+      <div className="relative flex-shrink-0 flex items-center justify-center" style={{ width: PHONE_OUT_W, height: PHONE_OUT_H }}>
         <div className="absolute -right-8 -top-8 h-60 w-60 rounded-full bg-gradient-to-tr from-transparent via-[#FDE68A]/60 to-[#FBBF24]/30 blur-[50px] z-0 pointer-events-none" />
-        <div className="relative z-10 h-[540px] w-[270px] rounded-[40px] border-[10px] border-[#F8F9FA] bg-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] overflow-hidden">
+        <PhoneScanDemo stage={stage} heroRef={heroRef} />
+        <div className={`relative z-10 h-[568px] w-[270px] rounded-[40px] border-[10px] border-[#F8F9FA] bg-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] overflow-hidden transition-opacity duration-500 ${stage === 'off' ? 'opacity-100' : 'opacity-0'}`}>
           <div className="absolute left-1/2 top-2 h-5 w-20 -translate-x-1/2 rounded-full bg-gray-900 z-20" />
           <div className="flex h-full w-full flex-col bg-white p-4 pt-10">
             <div className="flex items-center justify-between mb-4">
@@ -1224,6 +1226,8 @@ export const FooterSection = () => {
 // ============================================================================
 
 export default function HomePage() {
+  const heroRef = useRef<HTMLElement>(null);
+  const [stage, setStage] = useState<DemoStage>('off');
   return (
     <div style={{ backgroundColor: "#FFFFFF", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflowX: "clip", position: "relative" }}>
       <style>{`
@@ -1235,7 +1239,6 @@ export default function HomePage() {
       <FloatingQrButton />
       <HeaderSection />
       <main className="relative z-10 flex w-full flex-col items-center">
-        <ScrollUnboxingHero />
         <HeroSection />
         <AboutUsSection />
         <QrSection />
@@ -1245,7 +1248,8 @@ export default function HomePage() {
         <FaqSection />
         <ReviewsSection />
         <PartnerLogosSection />
-        <DownloadAppSection />
+        <ScrollUnboxingHero sectionRef={heroRef} onStageChange={setStage} />
+        <DownloadAppSection stage={stage} heroRef={heroRef} />
       </main>
       <FooterSection />
     </div>

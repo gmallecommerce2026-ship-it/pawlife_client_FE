@@ -4,7 +4,7 @@
 // iPhone giả lập: màn hình Scan (giống scan.tsx) → nhận diện → màn Scanned Pet (giống scanned-pet.tsx).
 // Màn hình được dựng ở kích thước thiết kế 390×844 rồi scale cho vừa khung, nên mọi số đo px đều lấy từ app RN.
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { AlertCircle, BatteryFull, Check, ChevronLeft, Signal, Wifi, X, Zap } from 'lucide-react';
@@ -34,6 +34,22 @@ const BOX = 288; // khung quét (giống BOX_SIZE trong scan.tsx)
 const BOX_X = (SCREEN_W - BOX) / 2;
 const BOX_Y = (SCREEN_H - BOX) / 2;
 const BEZEL = 7;
+const PW = 256; // bề ngang màn hình điện thoại ở kích thước gốc
+const PH = (PW * SCREEN_H) / SCREEN_W;
+export const PHONE_OUT_W = PW + BEZEL * 2; // khung ngoài (dùng làm kích thước "ô" ở phần Tải ứng dụng)
+export const PHONE_OUT_H = Math.round(PH + BEZEL * 2);
+
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+
+/* Vị trí + tỉ lệ của điện thoại khi đang ở trong hero (toạ độ viewport) */
+function heroPose(vw: number, vh: number) {
+    const maxH = vw < 1024 ? vh - 300 : vh * 0.8;
+    const pw = Math.round(Math.max(150, Math.min(300, (maxH * SCREEN_W) / SCREEN_H, vw * 0.7)));
+    const s = (pw + BEZEL * 2) / PHONE_OUT_W;
+    const w = PHONE_OUT_W * s;
+    const h = PHONE_OUT_H * s;
+    return vw < 1024 ? { x: (vw - w) / 2, y: vh - 56 - h, s } : { x: vw * 0.58 - w / 2, y: (vh - h) / 2, s };
+}
 
 function usePhoneWidth() {
     const [w, setW] = useState(240);
@@ -261,19 +277,56 @@ function ResultScreen() {
 /* ---------------- Khung iPhone ---------------- */
 const ISLAND_W: Record<DemoStage, number> = { off: 126, enter: 126, scan: 176, locked: 196, result: 126 };
 
-export default function PhoneScanDemo({ stage }: { stage: DemoStage }) {
-    const pw = usePhoneWidth();
+export default function PhoneScanDemo({ stage, heroRef }: { stage: DemoStage; heroRef: RefObject<HTMLElement | null> }) {
+    const rootRef = useRef<HTMLDivElement>(null);
+    const pw = PW;
+    const ph = PH;
     const scale = pw / SCREEN_W;
-    const ph = SCREEN_H * scale;
     const on = stage !== 'off';
     const showResult = stage === 'result';
     const screenR = 48 * scale;
     const outerR = screenR + BEZEL;
 
+    /* Định vị: k = 0 → nằm ở vị trí hero (fixed theo viewport); k = 1 → nằm đúng trong ô của phần Tải ứng dụng.
+       k tăng khi hero cuộn ra khỏi màn hình. Khi k = 1 bỏ fixed, điện thoại đứng yên theo trang. */
+    useEffect(() => {
+        const update = () => {
+            const el = rootRef.current;
+            const slot = el?.parentElement;
+            if (!el || !slot) return;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const hb = heroRef.current ? heroRef.current.getBoundingClientRect().bottom : 0; // đáy hero
+            const r = clamp((vh - hb) / vh, 0, 1);
+            const k = r * r * (3 - 2 * r);
+            if (k >= 1) {
+                el.style.position = '';
+                el.style.transform = '';
+                return;
+            }
+            const sr = slot.getBoundingClientRect();
+            const h = heroPose(vw, vh);
+            const x = h.x + (sr.left - h.x) * k;
+            const y = h.y + (sr.top - h.y) * k;
+            const s = h.s + (sr.width / PHONE_OUT_W - h.s) * k;
+            el.style.position = 'fixed';
+            el.style.transformOrigin = '0 0';
+            el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${s})`;
+        };
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update);
+        return () => {
+            window.removeEventListener('scroll', update);
+            window.removeEventListener('resize', update);
+        };
+    }, [heroRef, stage]);
+
     return (
         <div
-            className="pointer-events-none absolute bottom-14 left-1/2 z-20 -translate-x-1/2 lg:bottom-auto lg:left-[58%] lg:top-1/2 lg:-translate-y-1/2"
-            style={{ perspective: 1200 }}
+            ref={rootRef}
+            className="pointer-events-none absolute left-0 top-0 z-20"
+            style={{ perspective: 1200, width: PHONE_OUT_W, height: PHONE_OUT_H }}
         >
             <AnimatePresence>
                 {on && (
