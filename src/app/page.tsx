@@ -1,10 +1,8 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
-import React, { useEffect, useState, useRef, type RefObject } from "react";
 import { motion, useReducedMotion, useInView, AnimatePresence, useAnimation, useMotionValue, animate } from "framer-motion";
 import ScrollUnboxingHero from "@/components/home/ScrollUnboxingHero";
-import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H } from "@/components/home/PhoneScanDemo";
 import Link from "next/link";
 import axiosClient from "@/lib/api/axiosClient";
 import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
@@ -1076,96 +1074,30 @@ const PartnerLogosSection = () => (
   </section>
 );
 
-const DownloadAppSection = ({ stage, heroRef }: { stage: DemoStage; heroRef: RefObject<HTMLElement | null> }) => {
-  const phoneMockPets = [
-    { name: "Max", gender: "male", info: "2 tuổi · G. Retriever", id: "QR-001234", img: "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=300&q=80", status: "Available", statusColor: "bg-green-100 text-green-700", dot: "bg-green-500" },
-    { name: "Luna", gender: "female", info: "1 tuổi · L. Retriever", id: "QR-001235", img: "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&w=300&q=80", status: "Pending", statusColor: "bg-yellow-100 text-yellow-700", dot: "bg-yellow-500" },
-    { name: "Rocky", gender: "male", info: "4 tuổi · S. Husky", id: "QR-001236", img: "https://images.unsplash.com/photo-1605568427561-40dd23c2acea?auto=format&fit=crop&w=300&q=80", status: "Hold", statusColor: "bg-red-100 text-red-700", dot: "bg-red-500" },
-    { name: "Whiskers", gender: "female", info: "5 tuổi · Maine Coon", id: "QR-001237", img: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=300&q=80", status: "Available", statusColor: "bg-green-100 text-green-700", dot: "bg-green-500" },
-  ];
-
-  return (
-    <section className="mx-auto mt-16 sm:mt-20 lg:mt-[100px] flex w-full max-w-[1392px] lg:px-20 flex-col items-center justify-between gap-10 px-6 lg:flex-row lg:gap-20">
-      <div className="relative flex-shrink-0 flex items-center justify-center" style={{ width: PHONE_OUT_W, height: PHONE_OUT_H }}>
-        <div className="absolute -right-8 -top-8 h-60 w-60 rounded-full bg-gradient-to-tr from-transparent via-[#FDE68A]/60 to-[#FBBF24]/30 blur-[50px] z-0 pointer-events-none" />
-        <PhoneScanDemo stage={stage} heroRef={heroRef} />
-        <div className={`relative z-10 h-[568px] w-[270px] rounded-[40px] border-[10px] border-[#F8F9FA] bg-white shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] overflow-hidden transition-opacity duration-500 ${stage === 'off' ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="absolute left-1/2 top-2 h-5 w-20 -translate-x-1/2 rounded-full bg-gray-900 z-20" />
-          <div className="flex h-full w-full flex-col bg-white p-4 pt-10">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-[18px] font-bold text-gray-900 font-['Be_Vietnam_Pro'] tracking-tight">Thú cưng</h4>
-              <div className="flex items-center gap-2.5">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <div className="relative">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
-                  <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-[#F97316] ring-2 ring-white" />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-1 text-[10px] font-medium text-gray-400">
-                <span>Đang hiển thị 11 bé</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {phoneMockPets.map((pet, i) => (
-                <div key={i} className="flex flex-col rounded-xl border border-gray-100 bg-white p-1.5 shadow-sm">
-                  <div className="relative h-[85px] w-full mb-1.5">
-                    <img src={pet.img} alt={pet.name} className="h-full w-full rounded-lg object-cover" />
-                    <div className={`absolute right-1 top-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 ${pet.statusColor} bg-opacity-90 backdrop-blur-sm`}>
-                      <span className={`h-1 w-1 rounded-full ${pet.dot}`} />
-                      <span className="text-[7px] font-bold tracking-wide">{pet.status}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 px-1">
-                    <span className="text-[11px] font-bold text-gray-900 truncate">{pet.name}</span>
-                    {pet.gender === "male" ? (
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="14" r="5" /><line x1="13.5" y1="10.5" x2="21" y2="3" /><polyline points="16 3 21 3 21 8" /></svg>
-                    ) : (
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#F472B6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="10" r="6" /><line x1="12" y1="16" x2="12" y2="22" /><line x1="9" y1="19" x2="15" y2="19" /></svg>
-                    )}
-                  </div>
-                  <span className="text-[8px] text-gray-500 px-1 mt-0.5 truncate">{pet.info}</span>
-                  <div className="mt-1 flex px-1 pb-1">
-                    <span className="text-[7px] text-gray-400 font-medium tracking-wide">ID: {pet.id}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="absolute bottom-0 left-0 w-full h-16 bg-gradient-to-t from-white to-transparent pointer-events-none" />
-          </div>
+const DownloadFinale = () => (
+  <div className="flex w-full flex-col text-center lg:text-left">
+    <h2 className="mb-3 text-2xl font-black tracking-tight text-gray-900 lg:mb-4 lg:text-4xl font-['Be_Vietnam_Pro']">Tải ứng dụng PawLife</h2>
+    <p className="mx-auto mb-5 max-w-[500px] text-[14px] leading-relaxed text-gray-500 lg:mx-0 lg:mb-8 lg:text-[15px]">
+      Trải nghiệm tương lai của việc nhận nuôi thú cưng ngay trên điện thoại. Tìm kiếm thú cưng, theo dõi hồ sơ nhận nuôi và kết nối với các trạm cứu hộ đã xác minh - tất cả trong một ứng dụng.
+    </p>
+    <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
+      <a href={IOS_APP_URL} className="flex items-center gap-2.5 rounded-[16px] bg-gray-900 px-5 py-3 text-white shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all hover:scale-[1.02] hover:bg-gray-800 active:scale-95">
+        <Icons.Apple />
+        <div className="flex flex-col justify-center text-left">
+          <div className="mb-1 text-[9px] font-medium leading-none text-gray-300">Download on the</div>
+          <div className="text-[16px] font-semibold leading-none">App Store</div>
         </div>
-      </div>
-      <div className="flex w-full flex-col text-center lg:text-left">
-        <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4 font-['Be_Vietnam_Pro'] tracking-tight">Tải ứng dụng PawLife</h2>
-        <p className="text-[15px] text-gray-500 mb-8 leading-relaxed max-w-[500px] mx-auto lg:mx-0">
-          Trải nghiệm tương lai của việc nhận nuôi thú cưng ngay trên điện thoại. Tìm kiếm thú cưng, theo dõi hồ sơ nhận nuôi và kết nối với các trạm cứu hộ đã xác minh - tất cả trong một ứng dụng.
-        </p>
-        <div className="flex flex-wrap justify-center lg:justify-start gap-3">
-          <a href={IOS_APP_URL} className="flex items-center gap-2.5 rounded-[16px] bg-gray-900 px-5 py-3 text-white transition-all hover:bg-gray-800 hover:scale-[1.02] active:scale-95 shadow-[0_8px_16px_rgba(0,0,0,0.1)]">
-            <Icons.Apple />
-            <div className="text-left flex flex-col justify-center">
-              <div className="text-[9px] leading-none text-gray-300 mb-1 font-medium">Download on the</div>
-              <div className="text-[16px] font-semibold leading-none">App Store</div>
-            </div>
-          </a>
-          <a href={ANDROID_APP_URL} className="flex items-center gap-2.5 rounded-[16px] bg-gray-900 px-5 py-3 text-white transition-all hover:bg-gray-800 hover:scale-[1.02] active:scale-95 shadow-[0_8px_16px_rgba(0,0,0,0.1)]">
-            <Icons.GooglePlay />
-            <div className="text-left flex flex-col justify-center">
-              <div className="text-[9px] leading-none text-gray-300 mb-1 font-medium">GET IT ON</div>
-              <div className="text-[16px] font-semibold leading-none">Google Play</div>
-            </div>
-          </a>
+      </a>
+      <a href={ANDROID_APP_URL} className="flex items-center gap-2.5 rounded-[16px] bg-gray-900 px-5 py-3 text-white shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all hover:scale-[1.02] hover:bg-gray-800 active:scale-95">
+        <Icons.GooglePlay />
+        <div className="flex flex-col justify-center text-left">
+          <div className="mb-1 text-[9px] font-medium leading-none text-gray-300">GET IT ON</div>
+          <div className="text-[16px] font-semibold leading-none">Google Play</div>
         </div>
-      </div>
-    </section>
-  );
-};
+      </a>
+    </div>
+  </div>
+);
 
 export const FooterSection = () => {
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1226,8 +1158,6 @@ export const FooterSection = () => {
 // ============================================================================
 
 export default function HomePage() {
-  const heroRef = useRef<HTMLElement>(null);
-  const [stage, setStage] = useState<DemoStage>('off');
   return (
     <div style={{ backgroundColor: "#FFFFFF", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", overflowX: "clip", position: "relative" }}>
       <style>{`
@@ -1248,8 +1178,7 @@ export default function HomePage() {
         <FaqSection />
         <ReviewsSection />
         <PartnerLogosSection />
-        <ScrollUnboxingHero sectionRef={heroRef} onStageChange={setStage} />
-        <DownloadAppSection stage={stage} heroRef={heroRef} />
+        <ScrollUnboxingHero finale={<DownloadFinale />} />
       </main>
       <FooterSection />
     </div>
