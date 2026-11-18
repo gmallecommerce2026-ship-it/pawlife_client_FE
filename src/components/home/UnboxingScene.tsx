@@ -722,11 +722,6 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
   const ringFront = useMemo(() => new THREE.MeshPhysicalMaterial({ map: frontTex, ...enamel, roughness: 0.6, clearcoat: 0.05, envMapIntensity: 0.3, side: THREE.DoubleSide }), [frontTex, grain]);
   const ringBack = useMemo(() => new THREE.MeshPhysicalMaterial({ map: backTex, ...enamel, side: THREE.DoubleSide }), [backTex, grain]);
 
-  // Đặt các thuộc tính thứ tự xoay trước khi dùng
-  useEffect(() => {
-    if (ringRef.current) ringRef.current.rotation.order = 'YXZ';
-  }, []);
-
   /* Mobile: chặn trình duyệt "kéo xuống để tải lại trang" (pull-to-refresh) khi hộp CHƯA đóng hẳn.
      Lỗi cũ: cuộn nhanh về đầu trang thì cuộn đã chạm 0 nhưng nắp còn đang đóng dở (do làm mượt), vuốt thêm một nhịp là trình duyệt reload.
      Cách làm: overscroll-behavior-y: none trên html/body khi hộp chưa đóng; chỉ trả lại hành vi gốc khi hộp đã đóng hẳn và đứng yên ở đầu trang.
@@ -930,7 +925,7 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
       </group>
 
       {/* Vòng: nằm trong lõm, nhấc lên và bay theo quỹ đạo 3D */}
-      <group ref={ringRef} scale={S_RING}>
+      <group ref={ringRef} scale={S_RING} rotation-order="YXZ">
         <mesh geometry={ringGeo} material={[ringFront, ringBody, ringBack]} castShadow />
       </group>
 

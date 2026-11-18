@@ -58,7 +58,7 @@ function ScanScreen({ stage }: { stage: DemoStage }) {
                     opacity: 1,
                     filter: stage === 'enter' ? 'blur(7px)' : 'blur(0px)', // chỉ lấy nét, không zoom
                 }}
-                transition={{ duration: 1.3, ease: EASE }}
+                transition={{ duration: 1.3, delay: 0.35, ease: EASE }}
             >
                 <PhoneCamScene />
             </motion.div>
