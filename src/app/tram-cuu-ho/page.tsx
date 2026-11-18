@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BadgeCheck, ChevronLeft, MapPin } from 'lucide-react';
-import { fetchShelters, shelterCover, shelterSince, PublicShelter } from '@/lib/publicShelters';
+import { fetchShelters, shelterCover, shelterSince, shelterPath, PublicShelter } from '@/lib/publicShelters';
 
 export default function ShelterListPage() {
   const [shelters, setShelters] = useState<PublicShelter[] | null>(null);
@@ -30,7 +30,7 @@ export default function ShelterListPage() {
       ) : (
         <div className="grid grid-cols-1 gap-6 pt-4 md:grid-cols-2 lg:grid-cols-3">
           {shelters.map((s) => (
-            <Link key={s.id} href={`/tram-cuu-ho/${s.id}`} className="group block overflow-hidden rounded-3xl border border-[#EBEBEB] bg-white transition hover:shadow-lg">
+            <Link key={s.id} href={shelterPath(s)} className="group block overflow-hidden rounded-3xl border border-[#EBEBEB] bg-white transition hover:shadow-lg">
               <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-[#FFF1E4] to-[#FFE0C2]">
                 {shelterCover(s) && <img src={shelterCover(s)!} alt="" className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105" />}
               </div>

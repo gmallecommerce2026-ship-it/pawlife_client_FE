@@ -7,7 +7,7 @@ import ScrollUnboxingHero from "@/components/home/ScrollUnboxingHero";
 import Link from "next/link";
 import axiosClient from "@/lib/api/axiosClient";
 import AdoptionFormModal from "@/components/adoption/AdoptionFormModal";
-import { fetchShelters, shelterCover, shelterSince, PublicShelter } from "@/lib/publicShelters";
+import { fetchShelters, shelterCover, shelterSince, shelterPath, PublicShelter } from "@/lib/publicShelters";
 
 // ============================================================================
 // 0. CẤU HÌNH & HẰNG SỐ
@@ -933,7 +933,7 @@ const SheltersSection = () => {
                 </div>
               </MobileMore>
               <div className="flex gap-2.5 lg:gap-3">
-                <PrimaryBtn href={`${ROUTES.shelters}/${shelter.id}?from=home`}>Xem hồ sơ</PrimaryBtn>
+                <PrimaryBtn href={`${shelterPath(shelter)}?from=home`}>Xem hồ sơ</PrimaryBtn>
                 <OutlineBtn href={ROUTES.shelters}>Tất cả trạm</OutlineBtn>
               </div>
             </div>

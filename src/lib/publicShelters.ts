@@ -17,6 +17,7 @@ export interface PublicShelterPet {
 export interface PublicShelter {
   id: string;
   name: string;
+  slug?: string | null;
   address: string;
   contactInfo?: string | null;
   emailAddress?: string | null;
@@ -46,6 +47,9 @@ export const petAgeLabel = (dob?: string | null) => {
   return y > 0 ? `${y} tuổi` : m >= 1 ? `${Math.floor(m)} tháng` : 'Sơ sinh';
 };
 
+/** Đường dẫn công khai của trạm: ưu tiên slug, fallback id nếu backend chưa có slug */
+export const shelterPath = (s: Pick<PublicShelter, 'id' | 'slug'>) => `/tram-cuu-ho/${s.slug || s.id}`;
+
 export const shelterSince = (s: PublicShelter) => new Date(s.verifiedAt || s.createdAt).getFullYear();
 
 export const shelterCover = (s: PublicShelter) => s.coverUrl || s.avatarUrl || null;
@@ -55,7 +59,8 @@ export async function fetchShelters(): Promise<PublicShelter[]> {
   return res.data?.data ?? [];
 }
 
-export async function fetchShelter(id: string): Promise<PublicShelter> {
-  const res = await axiosClient.get(`/shelters/${id}`);
+/** Nhận cả slug lẫn id (id để hỗ trợ link cũ) */
+export async function fetchShelter(slugOrId: string): Promise<PublicShelter> {
+  const res = await axiosClient.get(`/shelters/${slugOrId}`);
   return res.data;
 }
