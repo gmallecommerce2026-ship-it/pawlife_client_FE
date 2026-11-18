@@ -203,42 +203,6 @@ function ScrollUnboxingHeroBody({ sectionRef, onStageChange }: { sectionRef: Ref
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
 
-  // Quãng thoát: 0 khi đáy banner chạm đáy màn hình (vừa cuộn hết banner), 1 khi đáy banner chạm đỉnh màn hình (banner ra khỏi màn hình)
-  const { scrollYProgress: exitProgress } = useScroll({ target: containerRef, offset: ['end end', 'end start'] });
-  const fade = useTransform(exitProgress, [0, FADE_END], [1, 0]);
-
-  // Gỡ banner khi: người dùng đã THẤY nó, nay nó nằm hẳn phía trên màn hình, và đã dừng cuộn.
-  // (Nếu tải lại trang rồi trình duyệt khôi phục vị trí cuộn ở giữa trang thì chưa tính là đã thấy → vẫn cho cuộn ngược lên xem.)
-  useEffect(() => {
-    let seen = false;
-    let timer: number | undefined;
-    const check = () => {
-      const el = containerRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      if (r.bottom > 0 && r.top < window.innerHeight) {
-        seen = true;
-        window.clearTimeout(timer);
-        return;
-      }
-      if (seen && r.bottom <= 0) {
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => {
-          const el2 = containerRef.current;
-          if (el2 && el2.getBoundingClientRect().bottom <= 0) onPassed(el2.offsetHeight);
-        }, IDLE_MS);
-      }
-    };
-    check();
-    window.addEventListener('scroll', check, { passive: true });
-    window.addEventListener('resize', check);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('scroll', check);
-      window.removeEventListener('resize', check);
-    };
-  }, [onPassed]);
-
   useMotionValueEvent(scrollYProgress, 'change', (raw) => {
     if (raw < 0.4) armedRef.current = true;
   });
