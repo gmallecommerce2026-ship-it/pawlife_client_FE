@@ -44,69 +44,67 @@ type Chapter = {
   cta?: boolean;
 };
 
-/* Mỗi chương có khoảng cuộn riêng; giữa các chương không có chữ nào.
-   range tính theo tiến độ cuộn của hero (0–1). Đoạn 0.57–0.86 là phần điện thoại quét thử. */
+/* Trục cuộn v (0–1) của hero:
+   0 → 0.6      : các chương cũ chạy hết, tag về vị trí cuối (chương CTA)
+   0.62 → 0.70  : tag xoay thêm nửa vòng ra mặt sau có QR
+   0.72 → 1     : điện thoại hiện lên, quét, ra kết quả (bước cuối) */
+const SCENE_END = 0.6;
+
 const CHAPTERS: Chapter[] = [
   {
-    range: [0, 0.08],
+    range: [0, 0.072],
     side: 'center',
     eyebrow: 'QR Tag · Dành riêng cho thú cưng',
     lines: [{ text: 'Một chiếc tag nhỏ.' }, { text: 'Cả hồ sơ của bé.', accent: true }],
   },
   {
-    range: [0.11, 0.19],
+    range: [0.096, 0.168],
     side: 'left',
     eyebrow: 'Mở hộp',
     lines: [{ text: 'Bên trong là một danh tính riêng cho bé của bạn.' }],
   },
   {
-    range: [0.25, 0.3],
+    range: [0.216, 0.264],
     side: 'right',
     eyebrow: 'Cất cánh',
     lines: [{ text: 'Từ hộp nhỏ,' }, { text: 'đến cổ bé yêu.', accent: true }],
   },
-  { range: [0.355, 0.44], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
+  { range: [0.312, 0.384], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
   {
-    range: [0.49, 0.54],
+    range: [0.432, 0.48],
     side: 'left',
     eyebrow: 'Mặt sau',
     lines: [{ text: 'Mỗi tag một mã riêng,' }, { text: 'mỗi bé một hồ sơ.', accent: true }],
   },
   {
-    range: [0.67, 0.85],
-    side: 'demo',
-    eyebrow: 'Quét thử',
-    lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
-  },
-  {
-    range: [0.92, 1],
+    range: [0.528, 0.6],
     side: 'center',
     eyebrow: 'Sẵn sàng đồng hành',
     lines: [{ text: 'Gắn tag cho bé, và luôn có người tìm được bé khi cần.' }],
     cta: true,
   },
+  {
+    range: [0.73, 0.97],
+    side: 'demo',
+    eyebrow: 'Quét thử',
+    lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
+  },
 ];
 
-/* Tiến độ cảnh 3D: chạy hết chương "Mặt sau" (t = 0.82) trong 56% đầu, đứng yên lúc điện thoại quét thử,
-   rồi chạy nốt phần CTA. */
-const SCENE_A = 0.56;
-const SCENE_B = 0.86;
-const SCENE_T = 0.82;
-const mapScene = (v: number) =>
-  v <= SCENE_A ? (v * SCENE_T) / SCENE_A : v <= SCENE_B ? SCENE_T : SCENE_T + ((v - SCENE_B) / (1 - SCENE_B)) * (1 - SCENE_T);
+/* Cảnh 3D chạy hết hành trình (t = 1) trong đoạn 0 → SCENE_END rồi đứng yên */
+const mapScene = (v: number) => Math.min(1, v / SCENE_END);
 
-/* Các giai đoạn của điện thoại theo tiến độ cuộn (tăng/giảm số để quét sớm/muộn hơn) */
-/* Vòng xoay thêm của tag (sau khi tag đã về vị trí cuối): tiến độ cuộn SPIN_A → SPIN_B tương ứng 0 → 360°.
-   Điện thoại chỉ hiện sau SPIN_B. */
-const SPIN_A = 0.57;
-const SPIN_B = 0.65;
+/* Vòng xoay thêm: từ vị trí cuối (mặt trước) ra mặt sau = nửa vòng (π) */
+const SPIN_A = 0.62;
+const SPIN_B = 0.7;
 const spinAmount = (v: number) => {
   const s = Math.min(1, Math.max(0, (v - SPIN_A) / (SPIN_B - SPIN_A)));
-  return s * s * (3 - 2 * s); // vào chậm, ra chậm
+  return s * s * (3 - 2 * s) * 0.5; // 0 → 0.5 (0.5 tương ứng 180°)
 };
 
+/* Điện thoại: hiện sau khi tag đã xoay xong, và ở lại tới hết trang */
 const stageAt = (v: number): DemoStage =>
-  v < 0.66 || v > SCENE_B ? 'off' : v < 0.7 ? 'enter' : v < 0.77 ? 'scan' : v < 0.81 ? 'locked' : 'result';
+  v < 0.72 ? 'off' : v < 0.76 ? 'enter' : v < 0.83 ? 'scan' : v < 0.88 ? 'locked' : 'result';
 
 const POS: Record<Side, string> = {
   center: 'bottom-14 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
@@ -277,7 +275,7 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   const barScale = useTransform(p, [0, 1], [0, 1]);
 
   return (
-    <motion.section ref={containerRef} className="relative h-[560svh] w-full" style={{ backgroundColor: DESK_BASE, opacity: fade }} aria-label="Giới thiệu QR Tag">
+    <motion.section ref={containerRef} className="relative h-[600svh] w-full" style={{ backgroundColor: DESK_BASE, opacity: fade }} aria-label="Giới thiệu QR Tag">
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
 
         {/* Vignette: mép khung tối hơn, trung tâm sáng hơn */}

@@ -190,7 +190,7 @@ const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
 const LOOK_Y = 0.4;        // camera nhìn vào điểm (0, LOOK_Y, 0)
 
 /* ===== Camera của điện thoại (cảnh thứ hai trong màn hình iPhone) ===== */
-const PHONE_T = 0.82;                       // trạng thái cảnh: hộp đã mở, tag lộ mặt sau (= SCENE_T bên ScrollUnboxingHero)
+const PHONE_T = 0.76;                       // trạng thái cảnh: hộp đã mở, tag lộ mặt sau (= SCENE_T bên ScrollUnboxingHero)
 const PHONE_RING: [number, number, number] = [0, 1.3, 2.4]; // tag "được cầm" trước hộp
 const PHONE_DIR = new THREE.Vector3(0, 0.55, 0.83).normalize(); // hướng từ tag tới camera (nhìn chếch xuống)
 const PHONE_DIST = 5.0;                     // khoảng cách khi đã lấy nét (nhỏ hơn → tag to hơn trong khung)
