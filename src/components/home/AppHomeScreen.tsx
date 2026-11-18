@@ -21,7 +21,7 @@ const TEXT = {
 };
 const CARE = [
   { label: 'Dinh dưỡng', icon: 'nutrition-icon.png', entry: false },
-  { label: 'Thủ tục', icon: 'entry.png', entry: true },
+  { label: 'Nhập cảnh', icon: 'entry.png', entry: true },
   { label: 'Sức khỏe', icon: 'health-icon.png', entry: false },
   { label: 'Huấn luyện', icon: 'training-icon.png', entry: false },
 ];
