@@ -73,7 +73,7 @@ const CHAPTERS: Chapter[] = [
     lines: [{ text: 'Mỗi tag một mã riêng,' }, { text: 'mỗi bé một hồ sơ.', accent: true }],
   },
   {
-    range: [0.58, 0.85],
+    range: [0.62, 0.85],
     side: 'demo',
     eyebrow: 'Quét thử',
     lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
@@ -97,7 +97,7 @@ const mapScene = (v: number) =>
 
 /* Các giai đoạn của điện thoại theo tiến độ cuộn (tăng/giảm số để quét sớm/muộn hơn) */
 const stageAt = (v: number): DemoStage =>
-  v < 0.57 || v > SCENE_B ? 'off' : v < 0.62 ? 'enter' : v < 0.7 ? 'scan' : v < 0.745 ? 'locked' : 'result';
+  v < 0.61 || v > SCENE_B ? 'off' : v < 0.65 ? 'enter' : v < 0.72 ? 'scan' : v < 0.765 ? 'locked' : 'result';
 
 const POS: Record<Side, string> = {
   center: 'bottom-14 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
@@ -199,7 +199,8 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   const progressRef = useRef(0); // tiến độ cuộn, đọc trong cảnh 3D
   const [active, setActive] = useState(-1); // chương đang hiện chữ, -1 = không có chữ
   const [dot, setDot] = useState(0);
-  const [stage, setStage] = useState<DemoStage>('off'); 
+  const [stage, setStage] = useState<DemoStage>('off');
+  const armedRef = useRef(false); // chỉ true khi người xem đã thật sự cuộn qua đoạn đầu (tránh hiện ngay khi tải lại giữa trang)
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
@@ -240,9 +241,13 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
     };
   }, [onPassed]);
 
+  useMotionValueEvent(scrollYProgress, 'change', (raw) => {
+    if (raw < 0.4) armedRef.current = true;
+  });
+
   useMotionValueEvent(p, 'change', (v) => {
     progressRef.current = mapScene(v); // cảnh 3D dùng tiến độ đã ánh xạ, chữ và điện thoại dùng v
-    const st = stageAt(v);
+    const st = armedRef.current ? stageAt(v) : 'off';
     setStage((prev) => (prev === st ? prev : st));
     const idx = CHAPTERS.findIndex((c) => v >= c.range[0] && v <= c.range[1]);
     setActive((prev) => (prev === idx ? prev : idx));
@@ -269,13 +274,9 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
 
         {/* Cảnh 3D duy nhất: hộp + vòng */}
         {mounted && (
-          <motion.div
-            className="pointer-events-none absolute inset-0"
-            animate={{ opacity: stage === 'off' ? 1 : 0.15, scale: stage === 'off' ? 1 : 0.96 }}
-            transition={{ duration: 0.8, ease: EASE_OUT }}
-          >
-            <UnboxingScene progressRef={progressRef} paused={stage !== 'off'} />
-          </motion.div>
+          <div className="pointer-events-none absolute inset-0">
+            <UnboxingScene progressRef={progressRef} />
+          </div>
         )}
 
         {/* iPhone quét QR → màn hình Scanned Pet */}

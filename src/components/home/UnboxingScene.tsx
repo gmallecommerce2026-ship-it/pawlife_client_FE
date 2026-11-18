@@ -743,6 +743,7 @@ function Scene({ progressRef, touch, mode = 'main' }: { progressRef: MutableRefO
     }
   };
   useEffect(() => {
+    if (mode === 'phone') return; // cảnh trong điện thoại không động tới khoá kéo-để-tải-lại của cảnh chính
     // Rời trang (unmount) thì trả lại nguyên trạng, không để ảnh hưởng các trang khác
     return () => {
       pullLocked.current = false;
@@ -982,6 +983,7 @@ export function PhoneCamScene() {
       camera={{ position: [0, 6, 9], fov: 58, near: 0.1, far: 100 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       dpr={touch ? [1, 1.25] : [1, 1.75]}
+      resize={{ scroll: false, offsetSize: true }}
     >
       <color attach="background" args={[FOG_COLOR]} />
       <Scene progressRef={unused} touch={touch} mode="phone" />
