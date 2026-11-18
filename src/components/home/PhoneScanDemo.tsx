@@ -6,9 +6,8 @@
 
 import { type CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { QRCodeSVG } from 'qrcode.react';
 import { AlertCircle, BatteryFull, Check, ChevronLeft, Signal, Wifi, X, Zap } from 'lucide-react';
-
+import AppHomeScreen from './AppHomeScreen';
 import dynamic from 'next/dynamic';
 
 const PhoneCamScene = dynamic(() => import('./UnboxingScene').then((m) => m.PhoneCamScene), { ssr: false });
@@ -54,11 +53,10 @@ function ScanScreen({ stage }: { stage: DemoStage }) {
         >
             <motion.div
                 className="absolute inset-0"
-                initial={{ opacity: 0, scale: 1.15, filter: 'blur(14px)' }}
+                initial={{ opacity: 0, filter: 'blur(14px)' }}
                 animate={{
                     opacity: 1,
-                    scale: stage === 'enter' ? 1.08 : 1,
-                    filter: stage === 'enter' ? 'blur(7px)' : 'blur(0px)', // mờ rồi lấy nét như camera thật
+                    filter: stage === 'enter' ? 'blur(7px)' : 'blur(0px)', // chỉ lấy nét, không zoom
                 }}
                 transition={{ duration: 1.3, ease: EASE }}
             >
@@ -163,6 +161,9 @@ function ScanScreen({ stage }: { stage: DemoStage }) {
 }
 
 /* ---------------- Màn hình Scanned Pet (trạng thái an toàn) ---------------- */
+/* ---------------- Màn hình Scanned Pet (dịch 1-1 từ scanned-pet.tsx, nhánh Safe) ---------------- */
+const APP_FONT = "'Be Vietnam Pro', sans-serif";
+
 const Rise = ({ i, children, className, style }: { i: number; children: React.ReactNode; className?: string; style?: CSSProperties }) => (
     <motion.div
         className={className}
@@ -176,41 +177,50 @@ const Rise = ({ i, children, className, style }: { i: number; children: React.Re
 );
 
 function ResultScreen() {
+    // RN: font-medium text-[16px] mb-[12.5px] / text-[#8E8E93] text-[14px] capitalize
     const label = 'text-[16px] font-medium text-black mb-[12.5px]';
-    const value = 'text-[14px] text-[#8E8E93] capitalize';
+    const value = 'text-[14px] font-normal text-[#8E8E93] capitalize';
     return (
         <motion.div
             className="absolute inset-0 overflow-hidden bg-white"
+            style={{ fontFamily: APP_FONT, lineHeight: 'normal' }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.65, ease: EASE }}
         >
-            {/* nút đóng */}
-            <div className="absolute flex h-8 w-8 items-center justify-center" style={{ top: 48, right: 24 }}>
-                <X size={14} color="#111" />
+            {/* top-12 right-6, w-8 h-8, icon close 10×10 */}
+            <div className="absolute z-10 flex h-8 w-8 items-center justify-center" style={{ top: 48, right: 24 }}>
+                <X size={10} strokeWidth={2.5} color="#111" />
             </div>
+            {/* <View className="w-full h-20" /> */}
+            <div className="h-20 w-full" />
 
-            <div style={{ paddingTop: 80 }}>
-                {/* Ảnh hero */}
-                <Rise i={0} className="px-6 pt-4">
-                    <div className="rounded-[32px] bg-white" style={{ boxShadow: '4px 4px 5px rgba(0,0,0,0.25)' }}>
-                        <div className="relative h-[210px] w-full overflow-hidden rounded-[24px] bg-gray-200">
+            {/* HERO: pt-4 px-6 */}
+            <Rise i={0} className="px-6 pt-4">
+                {/* shadow RN {4,4} opacity .25 radius 5  →  CSS blur = 2 × radius = 10 */}
+                <div className="rounded-[32px] bg-white" style={{ boxShadow: '4px 4px 10px rgba(0,0,0,0.25)' }}>
+                    <div className="relative h-[210px] w-full overflow-hidden rounded-[24px] bg-gray-200 shadow-lg shadow-black/10">
+                        <div className="h-full w-full bg-[#F3F4F6]">
                             <img src={PET.image} alt={PET.name} className="h-full w-full object-cover" />
-                            <div className="absolute bottom-2 flex w-full items-center justify-center">
-                                {[0, 1, 2].map((d) => (
-                                    <span key={d} className="mx-[2px] h-[5px] rounded-full" style={{ width: d === 0 ? 14 : 5, backgroundColor: d === 0 ? BRAND : 'rgba(255,255,255,.7)' }} />
-                                ))}
-                            </div>
+                        </div>
+                        <div className="absolute bottom-[8px] z-20 flex w-full items-center justify-center">
+                            {[0, 1, 2].map((d) => (
+                                <span key={d} className={`mx-[2px] h-[5px] rounded-full ${d === 0 ? 'w-[14px] bg-[#E89B5A]' : 'w-[5px] bg-white/70'}`} />
+                            ))}
                         </div>
                     </div>
-                    <p className="py-5 text-center text-[24px] font-medium text-gray-800">Bé {PET.name} nè!</p>
-                </Rise>
+                </div>
+                <div className="flex items-center justify-center">
+                    <p className="py-5 text-[24px] font-medium text-gray-800">Bé {PET.name} nè!</p>
+                </div>
+            </Rise>
 
-                {/* Thông tin */}
-                <Rise i={1} className="px-5">
-                    <div className="mx-auto w-fit rounded-[16px] border border-[#D9D9D9] bg-white px-7 pb-9 pt-5">
-                        <div className="mb-7 flex justify-between gap-6">
+            {/* INFO: px-5 */}
+            <Rise i={1} className="px-5">
+                <div className="flex flex-col items-center justify-center">
+                    <div className="w-full rounded-[16px] border border-[#D9D9D9] bg-white px-7 pb-9 pt-5">
+                        <div className="mb-7 flex justify-between gap-2">
                             <div className="w-1/2">
                                 <p className={label}>Giới tính</p>
                                 <p className={value}>{PET.gender === 'female' ? 'cái' : 'đực'}</p>
@@ -220,7 +230,7 @@ function ResultScreen() {
                                 <p className={value}>{PET.breed}</p>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between gap-6">
+                        <div className="flex items-center justify-between gap-2">
                             <div className="w-1/2">
                                 <p className={label}>Màu sắc</p>
                                 <p className={value}>{PET.color}</p>
@@ -231,18 +241,22 @@ function ResultScreen() {
                             </div>
                         </div>
                     </div>
-                    <div className="relative -top-5 mx-auto w-4/5 rounded-full border border-[#D9D9D9] bg-[#FAFAFA] px-2.5 py-[6px] text-center text-[14px] leading-5 text-[#757575]">
+                    {/* w-4/5 px-2.5 py-[6px] rounded-full bottom-5 */}
+                    <div className="relative -top-5 w-4/5 rounded-full border border-[#D9D9D9] bg-[#FAFAFA] px-2.5 py-[6px] text-center text-[14px] font-normal leading-5 text-[#757575]">
                         {PET.name} đang an toàn
                     </div>
-                </Rise>
+                </div>
+            </Rise>
 
-                <Rise i={2} className="-mt-4 px-5">
-                    <div className="mt-5 w-full rounded-[16px] border border-[#D9D9D9] bg-[#FAFAFA] px-9 py-[13px] text-center text-[14px] leading-6 text-[#757575]">
+            {/* ACTIONS: px-5, -mt-4 mb-5, hộp mt-5, link pt-2 pb-4 */}
+            <Rise i={2} className="px-5">
+                <div className="-mt-4 mb-5">
+                    <div className="mt-5 w-full rounded-[16px] border border-[#D9D9D9] bg-[#FAFAFA] px-9 py-[13px] text-center text-[14px] font-normal leading-6 tracking-[0.5px] text-[#757575]">
                         Vì lý do bảo mật, thông tin liên hệ của chủ nhân chỉ hiển thị khi thú cưng bị báo mất.
                     </div>
-                    <p className="pb-4 pt-4 text-center text-[14px] text-[#8E8E93] underline">Có gì đó không đúng? Báo cáo tại đây</p>
-                </Rise>
-            </div>
+                </div>
+                <p className="pb-4 pt-2 text-center text-[14px] font-normal text-[#8E8E93] underline">Có gì đó không đúng? Báo cáo tại đây</p>
+            </Rise>
         </motion.div>
     );
 }
@@ -250,7 +264,7 @@ function ResultScreen() {
 /* ---------------- Khung iPhone ---------------- */
 const ISLAND_W: Record<DemoStage, number> = { off: 126, enter: 126, scan: 176, locked: 196, result: 126 };
 
-export default function PhoneScanDemo({ stage }: { stage: DemoStage }) {
+export default function PhoneScanDemo({ stage, home = false }: { stage: DemoStage; home?: boolean }) {
     const pw = PW;
     const ph = PH;
     const scale = pw / SCREEN_W;
@@ -310,14 +324,14 @@ export default function PhoneScanDemo({ stage }: { stage: DemoStage }) {
                         <div className="absolute overflow-hidden bg-black" style={{ top: BEZEL, left: BEZEL, width: pw, height: ph, borderRadius: screenR }}>
                             <div className="relative overflow-hidden" style={{ width: SCREEN_W, height: SCREEN_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
                                 <AnimatePresence initial={false}>
-                                    {showResult ? <ResultScreen key="result" /> : <ScanScreen key="scan" stage={stage} />}
+                                    {home ? <AppHomeScreen key="home" /> : showResult ? <ResultScreen key="result" /> : <ScanScreen key="scan" stage={stage} />}
                                 </AnimatePresence>
 
                                 {/* Thanh trạng thái */}
                                 <motion.div
                                     className="absolute left-0 right-0 top-0 z-40 flex items-center justify-between px-10"
                                     style={{ height: 54, paddingTop: 6 }}
-                                    animate={{ color: showResult ? '#000000' : '#FFFFFF' }}
+                                    animate={{ color: showResult && !home ? '#000000' : '#FFFFFF' }}
                                     transition={{ duration: 0.4 }}
                                 >
                                     <span className="pl-3 text-[17px] font-semibold">9:41</span>
@@ -354,7 +368,7 @@ export default function PhoneScanDemo({ stage }: { stage: DemoStage }) {
                                 {/* Home indicator */}
                                 <motion.div
                                     className="absolute bottom-2 left-1/2 z-40 h-[5px] w-[134px] -translate-x-1/2 rounded-full"
-                                    animate={{ backgroundColor: showResult ? '#111111' : '#FFFFFF' }}
+                                    animate={{ backgroundColor: showResult || home ? '#111111' : '#FFFFFF' }}
                                     transition={{ duration: 0.4 }}
                                 />
                             </div>

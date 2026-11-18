@@ -192,7 +192,7 @@ const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
 const LOOK_Y = 0.4;        // camera nhìn vào điểm (0, LOOK_Y, 0)
 
 /* ===== Camera của điện thoại (cảnh thứ hai trong màn hình iPhone) ===== */
-const PHONE_T = 0.76;                       // trạng thái cảnh: hộp đã mở, tag lộ mặt sau (= SCENE_T bên ScrollUnboxingHero)
+const PHONE_T = 1;                      // trạng thái cảnh: hộp đã mở, tag lộ mặt sau (= SCENE_T bên ScrollUnboxingHero)
 const PHONE_RING: [number, number, number] = [0, 1.3, 2.4]; // tag "được cầm" trước hộp
 const PHONE_DIR = new THREE.Vector3(0, Math.sin(RING_FLIP_RX), Math.cos(RING_FLIP_RX)); // hướng từ tag tới camera: trùng hướng mặt tag nên tag không bị nghiêng thêm
 const PHONE_DIST = 5.0;                     // khoảng cách khi đã lấy nét (nhỏ hơn → tag to hơn trong khung)
@@ -819,20 +819,10 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
     cam.position.set(0, LOOK_Y + (camY - LOOK_Y) * m, camZ * m); // lùi dọc theo đúng hướng nhìn cũ
     cam.lookAt(0, LOOK_Y, 0);
     if (phone && ringRef.current) {
-      const time = state.clock.elapsedTime;
-      // tag "nằm trong tay": hơi rung nhẹ như cầm thật
-      ringRef.current.position.set(PHONE_RING[0], PHONE_RING[1], PHONE_RING[2]);
-      ringRef.current.rotation.x = RING_FLIP_RX;
-      ringRef.current.rotation.y += PHONE_SPIN;
-      // camera tiến từ xa lại gần (lấy nét) trong ~2 giây đầu rồi giữ, tay cầm máy hơi lắc
-      const k = THREE.MathUtils.smoothstep(time, 0.3, 2.4);
-      const d = THREE.MathUtils.lerp(PHONE_DIST_FAR, PHONE_DIST, k);
+      // Tag giữ nguyên tư thế cuối của cảnh chính (đã tính ở trên với t = 1).
+      // Camera đứng yên: không zoom, không rung, nên tag không còn cúi rồi ngỏng.
       const rp = ringRef.current.position;
-      cam.position.set(
-        rp.x + Math.sin(time * 0.7) * 0.06,
-        rp.y + d * PHONE_DIR.y + Math.sin(time * 0.9) * 0.04,
-        rp.z + d * PHONE_DIR.z,
-      );
+      cam.position.set(rp.x, rp.y + PHONE_DIST * PHONE_DIR.y, rp.z + PHONE_DIST * PHONE_DIR.z);
       cam.lookAt(rp.x, rp.y, rp.z);
     }
     // Lùi camera bao nhiêu thì đẩy sương mù ra bấy nhiêu, để hộp và cỏ không bị phủ màu be nhiều hơn

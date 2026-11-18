@@ -29,7 +29,7 @@ const TOTAL_SPAN = MAIN_SPAN + EXIT_SPAN;
 const FADE_END = 0.3;                    // banner mờ hẳn
 const MOVE_A = 0.3, MOVE_B = 0.75;       // điện thoại dịch chỗ
 const FINALE_A = 0.4, FINALE_B = 0.8;    // nội dung "Tải ứng dụng" hiện
-
+const HOME_AT = 0.72;                    
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const smooth = (x: number) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -229,6 +229,7 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
   const [stage, setStage] = useState<DemoStage>('off');
   const [sceneOn, setSceneOn] = useState(true);
   const [finaleOn, setFinaleOn] = useState(false);
+    const [home, setHome] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   // Vị trí điện thoại (độ lệch so với tâm khung) — set trực tiếp, không qua React state
@@ -271,6 +272,7 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
     applyPhone(e);
     setSceneOn((prev) => (prev === e < FADE_END + 0.05 ? prev : e < FADE_END + 0.05));
     setFinaleOn((prev) => (prev === e > 0.5 ? prev : e > 0.5));
+    setHome((prev) => (prev === e > HOME_AT ? prev : e > HOME_AT));
   });
 
   // Chỉ dựng nội dung động sau khi vào trình duyệt; đo viewport và đặt đúng vị trí điện thoại
@@ -350,7 +352,7 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
               scale: ps,
             }}
           >
-            <PhoneScanDemo stage={stage} />
+            <PhoneScanDemo stage={stage} home={home} />
           </motion.div>
         )}
 
