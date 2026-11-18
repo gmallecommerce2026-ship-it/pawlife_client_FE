@@ -31,12 +31,12 @@ export default function ShelterListPage() {
         <div className="grid grid-cols-1 gap-6 pt-4 md:grid-cols-2 lg:grid-cols-3">
           {shelters.map((s) => (
             <Link key={s.id} href={`/tram-cuu-ho/${s.id}`} className="group block overflow-hidden rounded-3xl border border-[#EBEBEB] bg-white transition hover:shadow-lg">
-              <div className="relative h-40 bg-gradient-to-br from-[#FFF1E4] to-[#FFE0C2]">
-                {shelterCover(s) && <img src={shelterCover(s)!} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />}
+              <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-[#FFF1E4] to-[#FFE0C2]">
+                {shelterCover(s) && <img src={shelterCover(s)!} alt="" className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105" />}
               </div>
-              <div className="flex gap-3 p-4">
-                <img src={s.avatarUrl || '/assets/piglet.png'} alt={s.name} className="-mt-10 h-14 w-14 shrink-0 rounded-full border-4 border-white object-cover shadow" />
-                <div className="min-w-0 flex-1">
+              <div className="relative z-10 flex items-start gap-3 px-4 pb-4">
+                <img src={s.avatarUrl || '/assets/piglet.png'} alt={s.name} className="-mt-8 h-16 w-16 shrink-0 rounded-full border-4 border-white bg-white object-cover shadow" />
+                <div className="min-w-0 flex-1 pt-2">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate font-semibold text-[#111827]">{s.name}</p>
                     {s.isVerified && <BadgeCheck size={16} className="shrink-0 text-[#3B82F6]" aria-label="Đã xác minh" />}

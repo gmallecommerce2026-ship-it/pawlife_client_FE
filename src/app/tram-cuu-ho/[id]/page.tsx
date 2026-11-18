@@ -34,7 +34,7 @@ export default function ShelterProfilePage({ params }: { params: Promise<{ id: s
   if (shelter === undefined) {
     return (
       <div className="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-6">
-        <div className="h-[180px] animate-pulse rounded-3xl bg-gray-100 md:h-[260px]" />
+        <div className="aspect-[2/1] max-h-[340px] w-full animate-pulse rounded-3xl bg-gray-100 sm:aspect-[3/1]" />
         <div className="mt-4 h-6 w-1/3 animate-pulse rounded bg-gray-100" />
       </div>
     );
@@ -62,26 +62,41 @@ export default function ShelterProfilePage({ params }: { params: Promise<{ id: s
         <p className="truncate text-base font-semibold text-[#111827]">{shelter.name}</p>
       </div>
 
-      <div className="relative h-[180px] overflow-hidden rounded-3xl bg-gradient-to-br from-[#FFF1E4] to-[#FFE0C2] md:h-[260px]">
-        {cover && <img src={cover} alt="" className="h-full w-full object-cover" />}
+      {/* Cover: dùng tỉ lệ thay vì chiều cao cố định để banner ngang không bị crop quá nhiều */}
+      <div className="relative aspect-[2/1] max-h-[340px] w-full overflow-hidden rounded-3xl bg-gradient-to-br from-[#FFF1E4] to-[#FFE0C2] sm:aspect-[3/1]">
+        {cover && <img src={cover} alt="" className="h-full w-full object-cover object-center" />}
       </div>
 
-      <div className="-mt-10 flex items-end gap-4 px-2 md:-mt-12">
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-white bg-white shadow md:h-24 md:w-24">
-          <img src={shelter.avatarUrl || '/assets/piglet.png'} alt={shelter.name} className="h-full w-full object-cover" />
+      {/* Hero: relative z-10 để nổi lên trên cover */}
+      <div className="relative z-10 flex items-start gap-4 px-2">
+        <div className="-mt-10 h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-white bg-white shadow-md md:-mt-12 md:h-24 md:w-24">
+          <img
+            src={shelter.avatarUrl || '/assets/piglet.png'}
+            alt={shelter.name}
+            className="h-full w-full object-cover"
+          />
         </div>
-        <div className="min-w-0 pb-1">
+
+        {/* Tên nằm hoàn toàn dưới mép cover, giống app */}
+        <div className="min-w-0 flex-1 pt-3">
           <div className="flex items-center gap-1.5">
-            <h1 className="truncate text-xl font-bold text-[#111827] md:text-2xl">{shelter.name}</h1>
-            {shelter.isVerified && <BadgeCheck size={18} className="shrink-0 text-[#3B82F6]" aria-label="Đã xác minh" />}
+            <h1 className="truncate text-xl font-semibold text-[#111827] md:text-2xl">{shelter.name}</h1>
+            {shelter.isVerified && (
+              <BadgeCheck size={18} className="shrink-0 text-[#3B82F6]" aria-label="Đã xác minh" />
+            )}
           </div>
-          <p className="mt-0.5 text-sm text-[#8E8E93]">{shelter.shelterType || 'Trạm cứu hộ động vật'}</p>
+          <div className="mt-1 flex items-center gap-2 text-sm">
+            <p><span className="font-bold text-[#111827]">{petCount}</span> <span className="text-[#111827]">thú cưng</span></p>
+            <span className="text-xs font-extrabold">•</span>
+            <p><span className="font-bold text-[#111827]">{shelter.adoptedCount ?? 0}</span> <span className="text-[#111827]">đã nhận nuôi</span></p>
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-5 px-2 text-sm">
-        <p><span className="font-bold text-[#111827]">{petCount}</span> <span className="text-[#8E8E93]">thú cưng</span></p>
-        <p><span className="font-bold text-[#111827]">{shelter.adoptedCount ?? 0}</span> <span className="text-[#8E8E93]">đã nhận nuôi</span></p>
+      {/* Loại trạm + bio giống app */}
+      <div className="mt-3 px-2">
+        <p className="text-xs text-[#8E8E93]">{shelter.shelterType || 'Animal Shelter & Rescue'}</p>
+        {shelter.bio && <p className="mt-1 line-clamp-3 text-sm leading-5 text-black">{shelter.bio}</p>}
       </div>
 
       <div className="mt-5 flex gap-2 rounded-full bg-[#F6F6F6] p-1">
