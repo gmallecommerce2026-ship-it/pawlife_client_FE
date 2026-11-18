@@ -163,8 +163,8 @@ function makeTeethGeometry(): THREE.BufferGeometry {
     const cx = rt * Math.cos(b1), cz = rt * Math.sin(b1);
     const dx = rt * Math.cos(b0), dz = rt * Math.sin(b0);
     pos.push(
-      ax, yTop, az,  bx, yTop, bz,  cx, yTip, cz, // tam giác A-B-C (cùng chiều quấn với răng cũ)
-      ax, yTop, az,  cx, yTip, cz,  dx, yTip, dz, // tam giác A-C-D
+      ax, yTop, az, bx, yTop, bz, cx, yTip, cz, // tam giác A-B-C (cùng chiều quấn với răng cũ)
+      ax, yTop, az, cx, yTip, cz, dx, yTip, dz, // tam giác A-C-D
     );
   }
   const g = new THREE.BufferGeometry();
@@ -665,7 +665,7 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
   const teethGeo = useMemo(() => makeTeethGeometry(), []);
   const recessMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#E6D9CA', roughness: 0.9, transparent: true }), []);
   const creaseMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A3E12', transparent: true, opacity: 0.35 }), []);
-  
+
   // Chữ và logo của nắp: vẽ logo sau khi ảnh tải xong
   useEffect(() => {
     const img = new Image();
@@ -784,9 +784,11 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
     if (ringRef.current) {
       ringRef.current.position.set(evalCurve(RING_X, t) * xs, evalCurve(RING_Y, t), evalCurve(RING_Z, t));
       ringRef.current.rotation.x = evalCurve(RING_RX, t);
-            // spinRef: 0 → 1 tương ứng 0 → 360°. damp để vòng xoay mượt, không giật theo từng nhịp cuộn
-      extraSpin.current = THREE.MathUtils.damp(extraSpin.current, (spinRef?.current ?? 0) * Math.PI * 2, 6, dt);
-      ringRef.current.rotation.y = spinAt(t) + extraSpin.current + Math.sin(state.clock.elapsedTime * 0.9) * 0.08;
+      // spinRef: 0 → 1 tương ứng 0 → 360°. damp để vòng xoay mượt, không giật theo từng nhịp cuộn
+      extraSpin.current = THREE.MathUtils.damp(extraSpin.current, (spinRef?.current ?? 0) * Math.PI * 2, 10, dt);
+      // Lắc nhẹ chỉ có ở các chương đầu; bắt đầu xoay thêm là tắt hẳn để tag đứng yên. Trong cảnh điện thoại cũng không lắc.
+      const wob = phone ? 0 : 0.08 * (1 - THREE.MathUtils.clamp((spinRef?.current ?? 0) * 40, 0, 1));
+      ringRef.current.rotation.y = spinAt(t) + extraSpin.current + Math.sin(state.clock.elapsedTime * 0.9) * wob;
     }
     if (lidRef.current) {
       const lidA = Math.max(0, evalCurve(LID, t)); // chặn âm: nội suy Catmull-Rom có thể làm nắp lún nhẹ vào hộp ở đầu hành trình
@@ -815,11 +817,7 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
     if (phone && ringRef.current) {
       const time = state.clock.elapsedTime;
       // tag "nằm trong tay": hơi rung nhẹ như cầm thật
-      ringRef.current.position.set(
-        PHONE_RING[0] + Math.sin(time * 1.3) * 0.02,
-        PHONE_RING[1] + Math.sin(time * 1.7) * 0.025,
-        PHONE_RING[2],
-      );
+      ringRef.current.position.set(PHONE_RING[0], PHONE_RING[1], PHONE_RING[2]);
       ringRef.current.rotation.x = Math.atan2(PHONE_DIR.y, PHONE_DIR.z);
       ringRef.current.rotation.y += PHONE_SPIN;
       // camera tiến từ xa lại gần (lấy nét) trong ~2 giây đầu rồi giữ, tay cầm máy hơi lắc
@@ -968,7 +966,7 @@ export default function UnboxingScene({ progressRef, spinRef, paused = false }: 
       shadows
       camera={{ position: [0, 6.5, 12], fov: 30 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-            dpr={touch ? [1, DPR_MAX_TOUCH] : [1, 2]}
+      dpr={touch ? [1, DPR_MAX_TOUCH] : [1, 2]}
       frameloop={paused ? 'never' : 'always'}
       style={{ background: 'transparent' }}
     >

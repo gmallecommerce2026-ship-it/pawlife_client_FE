@@ -84,7 +84,7 @@ const CHAPTERS: Chapter[] = [
     cta: true,
   },
   {
-    range: [0.73, 0.97],
+    range: [0.77, 0.99],
     side: 'demo',
     eyebrow: 'Quét thử',
     lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
@@ -96,15 +96,14 @@ const mapScene = (v: number) => Math.min(1, v / SCENE_END);
 
 /* Vòng xoay thêm: từ vị trí cuối (mặt trước) ra mặt sau = nửa vòng (π) */
 const SPIN_A = 0.62;
-const SPIN_B = 0.7;
+const SPIN_B = 0.68;
 const spinAmount = (v: number) => {
   const s = Math.min(1, Math.max(0, (v - SPIN_A) / (SPIN_B - SPIN_A)));
   return s * s * (3 - 2 * s) * 0.5; // 0 → 0.5 (0.5 tương ứng 180°)
 };
 
-/* Điện thoại: hiện sau khi tag đã xoay xong, và ở lại tới hết trang */
 const stageAt = (v: number): DemoStage =>
-  v < 0.72 ? 'off' : v < 0.76 ? 'enter' : v < 0.83 ? 'scan' : v < 0.88 ? 'locked' : 'result';
+  v < 0.76 ? 'off' : v < 0.8 ? 'enter' : v < 0.86 ? 'scan' : v < 0.9 ? 'locked' : 'result';
 
 const POS: Record<Side, string> = {
   center: 'bottom-14 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
