@@ -1,24 +1,51 @@
 'use client';
 // src/components/home/ScrollUnboxingHero.tsx
-// Hero cuộn 6 chương. Hộp và vòng nằm trong một cảnh 3D duy nhất (UnboxingScene);
-// phần này chỉ lo chữ, chỉ báo tiến độ và đọc tiến độ cuộn.
+// Một khung ghim (sticky) duy nhất, cuộn điều khiển 3 pha:
+//   A) 0 → MAIN_SPAN       : banner 3D + quét QR (các chương cũ)
+//   B) exit 0 → 0.3        : banner mờ dần, điện thoại đứng yên giữa
+//   C) exit 0.3 → 0.75     : điện thoại dịch sang trái, nội dung "Tải ứng dụng" mờ hiện
+//   (exit 0.75 → 1 giữ nguyên một nhịp rồi trang mới cuộn tiếp bình thường)
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
-import { AnimatePresence, motion, useInView, useMotionValueEvent, useScroll, useSpring, useTransform } from 'framer-motion';
-import type { DemoStage } from './PhoneScanDemo';
+import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent, useScroll, useSpring, useTransform } from 'framer-motion';
+import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H, SCREEN_W, SCREEN_H, BEZEL } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
 
 export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
 const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
-
 const DESK_BASE = '#CDB39A';
 
-// dừng cuộn bao lâu thì mới gỡ banner (gỡ lúc đang quán tính cuộn trên mobile sẽ làm khựng)
+/* ===== Độ dài cuộn (đơn vị: 1 màn hình) ===== */
+const MAIN_SPAN = 5;     // đoạn banner + quét (tương đương 600svh cũ: 6 - 1 = 5)
+const EXIT_SPAN = 2.5;   // đoạn mờ banner → dịch điện thoại → hiện nội dung. Tăng số này = cuộn lâu hơn
+const TOTAL_SPAN = MAIN_SPAN + EXIT_SPAN;
+
+/* ===== Mốc của đoạn exit (0 → 1) ===== */
+const FADE_END = 0.3;                    // banner mờ hẳn
+const MOVE_A = 0.3, MOVE_B = 0.75;       // điện thoại dịch chỗ
+const FINALE_A = 0.4, FINALE_B = 0.8;    // nội dung "Tải ứng dụng" hiện
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+const smooth = (x: number) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/* Vị trí/tỉ lệ điện thoại so với TÂM khung ghim (CSS đã neo giữa, ở đây chỉ là độ lệch) */
+function phonePose(vw: number, vh: number) {
+  const desk = vw >= 1024;
+  const maxH = desk ? vh * 0.8 : vh - 300;
+  const pw = Math.round(Math.max(150, Math.min(300, (maxH * SCREEN_W) / SCREEN_H, vw * 0.7)));
+  const s0 = (pw + BEZEL * 2) / PHONE_OUT_W;
+  if (desk) return { s0, sF: s0, y0: 0, yF: 0, xF: -vw * 0.2 }; // cuối: tâm điện thoại ở ~30% bề ngang
+  const h0 = PHONE_OUT_H * s0;
+  const sF = Math.min(s0, (vh * 0.46) / PHONE_OUT_H);
+  return { s0, sF, y0: vh / 2 - 56 - h0 / 2, yF: 84 + (PHONE_OUT_H * sF) / 2 - vh / 2, xF: 0 };
+}
+
 const FEATURES = [
   { icon: History, title: 'PawHistory', text: 'Lưu trữ hồ sơ sức khoẻ' },
   { icon: Fingerprint, title: 'Pet ID', text: 'Một danh tính riêng cho bé' },
@@ -35,10 +62,10 @@ type Chapter = {
   cta?: boolean;
 };
 
-/* Trục cuộn v (0–1) của hero:
+/* Trục cuộn v (0–1) của phần banner:
    0 → 0.6      : các chương cũ chạy hết, tag về vị trí cuối (chương CTA)
    0.62 → 0.70  : tag xoay thêm nửa vòng ra mặt sau có QR
-   0.72 → 1     : điện thoại hiện lên, quét, ra kết quả (bước cuối) */
+   0.72 → 1     : điện thoại hiện lên, quét, ra kết quả (giữ nguyên ở kết quả suốt đoạn exit) */
 const SCENE_END = 0.6;
 
 const CHAPTERS: Chapter[] = [
@@ -191,26 +218,47 @@ function ChapterBody({ c, index, total }: { c: Chapter; index: number; total: nu
   );
 }
 
-function ScrollUnboxingHeroBody({ sectionRef, onStageChange }: { sectionRef: RefObject<HTMLElement | null>; onStageChange?: (s: DemoStage) => void }) {
-  const containerRef = sectionRef;
-  const progressRef = useRef(0); // tiến độ cuộn, đọc trong cảnh 3D
-  const spinRef = useRef(0);  // tiến độ cuộn, đọc trong cảnh 3D
-  const [active, setActive] = useState(-1); // chương đang hiện chữ, -1 = không có chữ
+export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
+  const containerRef = useRef<HTMLElement>(null);
+  const progressRef = useRef(0);
+  const spinRef = useRef(0);
+  const eRef = useRef(0);
+  const vpRef = useRef({ w: 1280, h: 800 });
+  const [active, setActive] = useState(-1);
   const [dot, setDot] = useState(0);
   const [stage, setStage] = useState<DemoStage>('off');
-  const armedRef = useRef(false); // chỉ true khi người xem đã thật sự cuộn qua đoạn đầu (tránh hiện ngay khi tải lại giữa trang)
+  const [sceneOn, setSceneOn] = useState(true);
+  const [finaleOn, setFinaleOn] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Vị trí điện thoại (độ lệch so với tâm khung) — set trực tiếp, không qua React state
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  const ps = useMotionValue(1);
+  const applyPhone = (e: number) => {
+    const P = phonePose(vpRef.current.w, vpRef.current.h);
+    const m = smooth((e - MOVE_A) / (MOVE_B - MOVE_A));
+    px.set(P.xF * m);
+    py.set(lerp(P.y0, P.yF, m));
+    ps.set(lerp(P.s0, P.sF, m));
+  };
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
 
-  useMotionValueEvent(scrollYProgress, 'change', (raw) => {
-    if (raw < 0.4) armedRef.current = true;
-  });
+  const vMV = useTransform(p, (x) => Math.min(1, (x * TOTAL_SPAN) / MAIN_SPAN));
+  const eMV = useTransform(p, (x) => clamp01((x * TOTAL_SPAN - MAIN_SPAN) / EXIT_SPAN));
+  const bannerOpacity = useTransform(eMV, [0, FADE_END], [1, 0]);
+  const finaleOpacity = useTransform(eMV, [FINALE_A, FINALE_B], [0, 1]);
+  const finaleY = useTransform(eMV, [FINALE_A, FINALE_B], [90, 0]); // parallax: nội dung trượt nhẹ từ dưới lên
+  const barScale = vMV;
 
-  useMotionValueEvent(p, 'change', (v) => {
-    progressRef.current = mapScene(v); // cảnh 3D dùng tiến độ đã ánh xạ, chữ và điện thoại dùng v
-    spinRef.current = spinAmount(v);// cảnh 3D dùng tiến độ đã ánh xạ, chữ và điện thoại dùng v
-    const st = armedRef.current ? stageAt(v) : 'off';
+  useMotionValueEvent(p, 'change', (x) => {
+    const v = Math.min(1, (x * TOTAL_SPAN) / MAIN_SPAN);
+    const e = clamp01((x * TOTAL_SPAN - MAIN_SPAN) / EXIT_SPAN);
+    progressRef.current = mapScene(v);
+    spinRef.current = spinAmount(v);
+    const st = stageAt(v);
     setStage((prev) => (prev === st ? prev : st));
     const idx = CHAPTERS.findIndex((c) => v >= c.range[0] && v <= c.range[1]);
     setActive((prev) => (prev === idx ? prev : idx));
@@ -219,69 +267,102 @@ function ScrollUnboxingHeroBody({ sectionRef, onStageChange }: { sectionRef: Ref
       if (v >= c.range[0] - 0.01) d = i;
     });
     setDot((prev) => (prev === d ? prev : d));
+    eRef.current = e;
+    applyPhone(e);
+    setSceneOn((prev) => (prev === e < FADE_END + 0.05 ? prev : e < FADE_END + 0.05));
+    setFinaleOn((prev) => (prev === e > 0.5 ? prev : e > 0.5));
   });
 
-  // Chỉ dựng nội dung động sau khi vào trình duyệt, tránh lệch HTML giữa máy chủ và trình duyệt
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
+  // Chỉ dựng nội dung động sau khi vào trình duyệt; đo viewport và đặt đúng vị trí điện thoại
   useEffect(() => {
-    onStageChange?.(stage);
-  }, [stage, onStageChange]);
-  const heroInView = useInView(containerRef, { margin: '200px 0px 200px 0px' });
+    const measure = () => {
+      vpRef.current = { w: window.innerWidth, h: window.innerHeight };
+      applyPhone(eRef.current);
+    };
+    measure();
+    setMounted(true);
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  const heroInView = useInView(containerRef, { margin: '200px 0px 200px 0px' });
   const chapter = active >= 0 ? CHAPTERS[active] : null;
-  const barScale = useTransform(p, [0, 1], [0, 1]);
 
   return (
-    <motion.section ref={containerRef} className="relative h-[600svh] w-full" style={{ backgroundColor: DESK_BASE }} aria-label="Giới thiệu QR Tag">
-      <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
+    <section ref={containerRef} className="relative w-full" style={{ height: `${(TOTAL_SPAN + 1) * 100}svh` }} aria-label="Giới thiệu QR Tag">
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden bg-white">
 
-        {/* Vignette: mép khung tối hơn, trung tâm sáng hơn */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-[1]" style={{ background: 'radial-gradient(ellipse 75% 65% at 50% 45%, rgba(0,0,0,0) 45%, rgba(40,22,10,0.55) 100%)' }} />
+        {/* ===== LỚP BANNER (mờ dần khi exit) ===== */}
+        <motion.div className="absolute inset-0" style={{ opacity: bannerOpacity, backgroundColor: DESK_BASE }}>
+          {/* Vignette */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-[1]" style={{ background: 'radial-gradient(ellipse 75% 65% at 50% 45%, rgba(0,0,0,0) 45%, rgba(40,22,10,0.55) 100%)' }} />
 
-        {/* Cảnh 3D duy nhất: hộp + vòng */}
-        {mounted && (
-          <div className="pointer-events-none absolute inset-0">
-            <UnboxingScene progressRef={progressRef} spinRef={spinRef} paused={!heroInView} />
+          {/* Cảnh 3D: dừng render khi banner đã mờ */}
+          {mounted && (
+            <div className="pointer-events-none absolute inset-0">
+              <UnboxingScene progressRef={progressRef} spinRef={spinRef} paused={!heroInView || !sceneOn} />
+            </div>
+          )}
+
+          <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
+          <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: barScale, backgroundColor: COLOR.brand }} />
+
+          {/* Chỉ báo tiến độ */}
+          <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2 lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:translate-x-0 lg:-translate-y-1/2 lg:flex-col">
+            {CHAPTERS.map((c, i) => (
+              <span
+                key={c.eyebrow}
+                className={`h-1.5 rounded-full transition-all duration-700 ${i === dot ? 'w-6' : 'w-1.5'}`}
+                style={{ backgroundColor: i === dot ? COLOR.brand : '#D1D5DB' }}
+              />
+            ))}
           </div>
+
+          {/* Chữ: một chương tại một thời điểm */}
+          <AnimatePresence mode="wait">
+            {mounted && chapter && active >= 0 && (
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12, filter: 'blur(4px)' }}
+                transition={{ duration: 0.45 }}
+                className={`absolute z-10 ${POS[chapter.side]}`}
+              >
+                <ChapterBody c={chapter} index={active} total={CHAPTERS.length} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* ===== ĐIỆN THOẠI: neo giữa khung bằng CSS, dịch chỗ bằng x/y/scale ===== */}
+        {mounted && (
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-1/2 z-20"
+            style={{
+              width: PHONE_OUT_W,
+              height: PHONE_OUT_H,
+              marginLeft: -PHONE_OUT_W / 2,
+              marginTop: -PHONE_OUT_H / 2,
+              x: px,
+              y: py,
+              scale: ps,
+            }}
+          >
+            <PhoneScanDemo stage={stage} />
+          </motion.div>
         )}
 
-
-        <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
-        <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: barScale, backgroundColor: COLOR.brand }} />
-
-        {/* Chỉ báo tiến độ */}
-        <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2 lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:translate-x-0 lg:-translate-y-1/2 lg:flex-col">
-          {CHAPTERS.map((c, i) => (
-            <span
-              key={c.eyebrow}
-              className={`h-1.5 rounded-full transition-all duration-700 ${i === dot ? 'w-6' : 'w-1.5'}`}
-              style={{ backgroundColor: i === dot ? COLOR.brand : '#D1D5DB' }}
-            />
-          ))}
-        </div>
-
-        {/* Chữ: một chương tại một thời điểm, luôn ở phía đối diện với vòng */}
-        <AnimatePresence mode="wait">
-          {mounted && chapter && active >= 0 && (
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12, filter: 'blur(4px)' }}
-              transition={{ duration: 0.45 }}
-              className={`absolute z-10 ${POS[chapter.side]}`}
-            >
-              <ChapterBody c={chapter} index={active} total={CHAPTERS.length} />
+        {/* ===== NỘI DUNG "TẢI ỨNG DỤNG" (mờ hiện + parallax) ===== */}
+        {finale && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 px-6 lg:inset-x-auto lg:bottom-auto lg:left-[55%] lg:right-12 lg:top-1/2 lg:-translate-y-1/2 lg:px-0">
+            <motion.div style={{ opacity: finaleOpacity, y: finaleY, pointerEvents: finaleOn ? 'auto' : 'none' }}>
+              {finale}
             </motion.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
       </div>
-    </motion.section>
+    </section>
   );
-}
-
-export default function ScrollUnboxingHero({ sectionRef, onStageChange }: { sectionRef: RefObject<HTMLElement | null>; onStageChange?: (s: DemoStage) => void }) {
-  return <ScrollUnboxingHeroBody sectionRef={sectionRef} onStageChange={onStageChange} />;
 }
