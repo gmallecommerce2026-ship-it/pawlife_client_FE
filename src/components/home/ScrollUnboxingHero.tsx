@@ -6,7 +6,7 @@
 //   C) exit 0.3 → 0.75     : điện thoại dịch sang trái, nội dung "Tải ứng dụng" mờ hiện
 //   (exit 0.75 → 1 giữ nguyên một nhịp rồi trang mới cuộn tiếp bình thường)
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
@@ -287,8 +287,40 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cuộn qua hết banner thì gỡ hẳn khỏi trang: cuộn ngược lên sẽ không hiện lại (chỉ reload mới có lại)
+  const [dismissed, setDismissed] = useState(false);
+  const anchorRef = useRef<{ el: Element; top: number } | null>(null);
+
+  useEffect(() => {
+    if (dismissed) return;
+    const check = () => {
+      const el = containerRef.current;
+      if (!el || el.getBoundingClientRect().bottom > 0) return;
+      const next = el.nextElementSibling ?? el.parentElement?.nextElementSibling;
+      if (next) anchorRef.current = { el: next, top: next.getBoundingClientRect().top };
+      setDismissed(true);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    return () => window.removeEventListener('scroll', check);
+  }, [dismissed]);
+
+  // Bù lại phần chiều cao vừa bị gỡ để người dùng không bị nhảy vị trí
+  useLayoutEffect(() => {
+    if (!dismissed) return;
+    const a = anchorRef.current;
+    if (!a) return;
+    const root = document.documentElement;
+    root.style.overflowAnchor = 'none';
+    const diff = a.el.getBoundingClientRect().top - a.top;
+    if (diff) window.scrollBy(0, diff);
+    requestAnimationFrame(() => requestAnimationFrame(() => { root.style.overflowAnchor = ''; }));
+  }, [dismissed]);
+
   const heroInView = useInView(containerRef, { margin: '200px 0px 200px 0px' });
   const chapter = active >= 0 ? CHAPTERS[active] : null;
+
+  if (dismissed) return null;
 
   return (
     <section ref={containerRef} className="relative w-full" style={{ height: `${(TOTAL_SPAN + 1) * 100}svh` }} aria-label="Giới thiệu QR Tag">

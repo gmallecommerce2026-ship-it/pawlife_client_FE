@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { BadgeCheck, ChevronLeft, MapPin, Search, X, Mail, Phone, ShieldCheck } from 'lucide-react';
+import { BadgeCheck, ChevronLeft, MapPin, Search, X, Mail, Phone, ShieldCheck, Mars, Venus } from 'lucide-react';
 import { fetchShelter, bilingual, petAgeLabel, shelterCover, PublicShelter } from '@/lib/publicShelters';
 
 type Tab = 'pets' | 'info';
@@ -145,7 +145,7 @@ export default function ShelterProfilePage({ params, searchParams }: { params: P
                     <div className="pt-3">
                       <p className="truncate text-base font-semibold text-black">{p.name}</p>
                       <p className="mt-0.5 truncate text-xs text-[#8E8E93]">
-                        <span className={g.startsWith('f') ? 'text-pink-400' : 'text-blue-400'}>{g.startsWith('f') ? '♀' : g.startsWith('m') ? '♂' : ''}</span> {petAgeLabel(p.dob)} · {bilingual(p.breed) || 'Chưa rõ giống'}
+                        {g.startsWith('f') ? <Venus size={14} strokeWidth={3} className="mr-0.5 inline-block -translate-y-px text-pink-400" aria-label="Cái" /> : g.startsWith('m') ? <Mars size={14} strokeWidth={3} className="mr-0.5 inline-block -translate-y-px text-blue-400" aria-label="Đực" /> : null} {petAgeLabel(p.dob)} · {bilingual(p.breed) || 'Chưa rõ giống'}
                       </p>
                     </div>
                   </Link>
