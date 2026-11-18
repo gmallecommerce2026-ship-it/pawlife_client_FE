@@ -820,6 +820,7 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
         PHONE_RING[1] + Math.sin(time * 1.7) * 0.025,
         PHONE_RING[2],
       );
+      ringRef.current.rotation.x = Math.atan2(PHONE_DIR.y, PHONE_DIR.z);
       ringRef.current.rotation.y += PHONE_SPIN;
       // camera tiến từ xa lại gần (lấy nét) trong ~2 giây đầu rồi giữ, tay cầm máy hơi lắc
       const k = THREE.MathUtils.smoothstep(time, 0.3, 2.4);
