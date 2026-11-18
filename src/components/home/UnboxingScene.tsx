@@ -179,6 +179,8 @@ const RING_Y: Key[] = [[0, RING_REST_Y], [0.12, RING_REST_Y], [0.26, 0.6], [0.36
 const RING_Z: Key[] = [[0, 0], [0.12, 0], [0.26, 0.2], [0.36, 1.4], [0.52, 2.2], [0.64, 1.6], [0.72, 2.4], [0.8, 2.0], [0.9, 1.0], [1, 1.0]];
 // Nghiêng: từ nằm phẳng (-π/2) đến mặt hướng camera
 const RING_RX: Key[] = [[0, -Math.PI / 2], [0.26, -0.9], [0.36, -0.3], [0.5, -0.3], [1, -0.3]];
+// Góc X cố định của mặt sau (có QR) sau khi lật: mặt hướng thẳng về camera (camera ở trên nhìn xuống ~0.39 rad). Cảnh điện thoại dùng cùng góc này.
+const RING_FLIP_RX = 0.39;
 // Nắp (theo video mẫu): 1) gờ trước mở thẳng ra (t < 0.03) rồi nắp mới nhấc nhẹ ~10°, 2) lật nhanh lên, lố tới ~112° rồi hồi về ~109°
 const LID: Key[] = [[0, 0], [0.03, 0], [0.07, 0.14], [0.1, 0.18], [0.21, 1.84], [0.28, 1.95], [0.38, 1.9], [1, 1.9]];
 // Gờ trước (0 → 1): mở thẳng ra phía trước trước tiên, xong hẳn khi nắp bắt đầu lật (t ≈ 0.03) để hai tam giác tuột khỏi khe.
@@ -192,7 +194,7 @@ const LOOK_Y = 0.4;        // camera nhìn vào điểm (0, LOOK_Y, 0)
 /* ===== Camera của điện thoại (cảnh thứ hai trong màn hình iPhone) ===== */
 const PHONE_T = 0.76;                       // trạng thái cảnh: hộp đã mở, tag lộ mặt sau (= SCENE_T bên ScrollUnboxingHero)
 const PHONE_RING: [number, number, number] = [0, 1.3, 2.4]; // tag "được cầm" trước hộp
-const PHONE_DIR = new THREE.Vector3(0, 0.55, 0.83).normalize(); // hướng từ tag tới camera (nhìn chếch xuống)
+const PHONE_DIR = new THREE.Vector3(0, Math.sin(RING_FLIP_RX), Math.cos(RING_FLIP_RX)); // hướng từ tag tới camera: trùng hướng mặt tag nên tag không bị nghiêng thêm
 const PHONE_DIST = 5.0;                     // khoảng cách khi đã lấy nét (nhỏ hơn → tag to hơn trong khung)
 const PHONE_DIST_FAR = 8.5;                 // khoảng cách lúc mới bật camera
 const PHONE_SPIN = 0;                       // nếu màn hình thấy MẶT TRƯỚC của tag thay vì mặt có QR, đổi thành Math.PI
@@ -783,12 +785,14 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
 
     if (ringRef.current) {
       ringRef.current.position.set(evalCurve(RING_X, t) * xs, evalCurve(RING_Y, t), evalCurve(RING_Z, t));
-      ringRef.current.rotation.x = evalCurve(RING_RX, t);
       // spinRef: 0 → 1 tương ứng 0 → 360°. damp để vòng xoay mượt, không giật theo từng nhịp cuộn
       extraSpin.current = THREE.MathUtils.damp(extraSpin.current, (spinRef?.current ?? 0) * Math.PI * 2, 10, dt);
+      // Lật ra mặt sau: góc X chuyển dần từ góc cũ sang RING_FLIP_RX cùng nhịp với góc Y, để mặt sau không bị cúi
+      const flip = phone ? 1 : THREE.MathUtils.clamp(extraSpin.current / Math.PI, 0, 1);
+      ringRef.current.rotation.x = THREE.MathUtils.lerp(evalCurve(RING_RX, t), RING_FLIP_RX, flip);
       // Lắc nhẹ chỉ có ở các chương đầu; bắt đầu xoay thêm là tắt hẳn để tag đứng yên. Trong cảnh điện thoại cũng không lắc.
       const wob = phone ? 0 : 0.08 * (1 - THREE.MathUtils.clamp((spinRef?.current ?? 0) * 40, 0, 1));
-      ringRef.current.rotation.y = spinAt(t) + extraSpin.current + Math.sin(state.clock.elapsedTime * 0.9) * wob;
+      ringRef.current.rotation.y = phone ? spinAt(1) + Math.PI : spinAt(t) + extraSpin.current + Math.sin(state.clock.elapsedTime * 0.9) * wob;
     }
     if (lidRef.current) {
       const lidA = Math.max(0, evalCurve(LID, t)); // chặn âm: nội suy Catmull-Rom có thể làm nắp lún nhẹ vào hộp ở đầu hành trình
@@ -818,7 +822,7 @@ function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: Mu
       const time = state.clock.elapsedTime;
       // tag "nằm trong tay": hơi rung nhẹ như cầm thật
       ringRef.current.position.set(PHONE_RING[0], PHONE_RING[1], PHONE_RING[2]);
-      ringRef.current.rotation.x = Math.atan2(PHONE_DIR.y, PHONE_DIR.z);
+      ringRef.current.rotation.x = RING_FLIP_RX;
       ringRef.current.rotation.y += PHONE_SPIN;
       // camera tiến từ xa lại gần (lấy nét) trong ~2 giây đầu rồi giữ, tay cầm máy hơi lắc
       const k = THREE.MathUtils.smoothstep(time, 0.3, 2.4);
