@@ -3,6 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import axiosClient from '@/lib/api/axiosClient';
 import { PawPrint } from 'lucide-react';
+import { IOS_APP_URL, ANDROID_APP_URL } from '@/lib/site';
+
+type Os = 'ios' | 'android' | 'other';
+const detectOs = (): Os => {
+  if (typeof navigator === 'undefined') return 'other';
+  const ua = navigator.userAgent || '';
+  if (/android/i.test(ua)) return 'android';
+  // iPadOS 13+ báo là Macintosh nhưng có cảm ứng
+  if (/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  return 'other';
+};
 
 type Opt = [string, string]; // [giá trị gửi BE (EN), nhãn hiển thị (VI)]
 const HOUSING: Opt[] = [['House', 'Nhà riêng'], ['House with a garden', 'Nhà có sân vườn'], ['Apartment (allows pet ownership)', 'Căn hộ (cho phép nuôi thú cưng)'], ['Apartment (pets not allowed, but willing to keep a pet discreetly)', 'Căn hộ (không cho phép nhưng vẫn muốn nuôi)'], ['Rented house', 'Nhà thuê'], ['Other', 'Khác']];
@@ -58,6 +69,8 @@ export default function AdoptionFormModal({
   const shelter = pet.shelterName || 'trạm cứu hộ';
   const [step, setStep] = useState<'terms' | 'form' | 'done'>('terms');
   const [read, setRead] = useState(false);
+  const [os, setOs] = useState<Os>('other');
+  useEffect(() => { setOs(detectOs()); }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [f, setF] = useState<Record<string, string>>({
     fullName: '', zalo: '', email: '', adoptFor: 'Myself', detail: '', housing: '', otherHousing: '',
@@ -167,8 +180,21 @@ export default function AdoptionFormModal({
         {step === 'done' && (
           <div className="px-6 py-14 text-center">
             <p className="text-xl font-bold text-gray-900">Gửi đơn thành công! 🎉</p>
-            <p className="mx-auto mt-3 max-w-sm text-sm text-gray-500">Cảm ơn bạn đã đăng ký nhận nuôi {pet.name}. {shelter} sẽ xem xét và liên hệ qua số điện thoại hoặc email bạn đã cung cấp. Chúng mình đã gửi email xác nhận tới <b>{f.email}</b> (nếu chưa thấy, hãy kiểm tra thư mục Spam). Tải app PawLife và đăng nhập bằng email hoặc số điện thoại này để theo dõi đơn nhé!</p>
-            <button type="button" onClick={onClose} className="mt-6 rounded-full bg-[#E89B5A] px-8 py-3 text-sm font-bold text-white">Đóng</button>
+            <p className="mx-auto mt-3 max-w-sm text-sm text-gray-500">Cảm ơn bạn đã đăng ký nhận nuôi {pet.name}. {shelter} sẽ xem xét và liên hệ qua số điện thoại hoặc email bạn đã cung cấp. Chúng mình đã gửi email xác nhận tới <b>{f.email}</b> (nếu chưa thấy, hãy kiểm tra thư mục Spam). Hãy đăng nhập app bằng email hoặc số điện thoại này để theo dõi đơn nhé!</p>
+            <p className="mx-auto mt-4 max-w-sm text-sm font-medium text-gray-700">Tải app PawLife để theo dõi tiến trình và nhận thông báo ngay khi đơn nhận nuôi của bạn có cập nhật.</p>
+            <div className="mt-5 flex flex-col items-center gap-2.5">
+              {(os === 'ios' || os === 'other') && (
+                <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-[220px] items-center justify-center rounded-full bg-[#E89B5A] px-8 py-3 text-sm font-bold text-white">
+                  {os === 'other' ? 'Tải app ngay · App Store' : 'Tải app ngay'}
+                </a>
+              )}
+              {(os === 'android' || os === 'other') && (
+                <a href={ANDROID_APP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-[220px] items-center justify-center rounded-full bg-[#E89B5A] px-8 py-3 text-sm font-bold text-white">
+                  {os === 'other' ? 'Tải app ngay · Google Play' : 'Tải app ngay'}
+                </a>
+              )}
+              <button type="button" onClick={onClose} className="mt-1 text-sm font-medium text-gray-400">Để sau</button>
+            </div>
           </div>
         )}
 
