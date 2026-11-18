@@ -14,7 +14,6 @@ import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent
 import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H, SCREEN_W, SCREEN_H, BEZEL } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
 
-export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
 const CTA_HREF = '/the-qr';
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
@@ -307,7 +306,6 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
             </div>
           )}
 
-          <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
           <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: barScale, backgroundColor: COLOR.brand }} />
 
           {/* Chỉ báo tiến độ */}

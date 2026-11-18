@@ -8,8 +8,12 @@ import { fetchShelter, bilingual, petAgeLabel, shelterCover, PublicShelter } fro
 type Tab = 'pets' | 'info';
 const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString('vi-VN') : '');
 
-export default function ShelterProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default function ShelterProfilePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
   const { id } = React.use(params);
+  // Mở từ trang chủ (?from=home) thì nút back về thẳng trang chủ, còn lại về danh sách trạm
+  const { from } = React.use(searchParams);
+  const backHref = from === 'home' ? '/' : '/tram-cuu-ho';
+  const backLabel = from === 'home' ? 'Về trang chủ' : 'Về danh sách trạm';
   // undefined = đang tải, null = không tìm thấy
   const [shelter, setShelter] = useState<PublicShelter | null | undefined>(undefined);
   const [tab, setTab] = useState<Tab>('pets');
@@ -56,7 +60,7 @@ export default function ShelterProfilePage({ params }: { params: Promise<{ id: s
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-16">
       <div className="sticky top-0 z-30 -mx-4 flex items-center gap-3 bg-white/95 px-4 pb-3 pt-4 backdrop-blur">
-        <Link href="/tram-cuu-ho" aria-label="Về danh sách trạm" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm">
+        <Link href={backHref} aria-label={backLabel} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm">
           <ChevronLeft size={20} />
         </Link>
         <p className="truncate text-base font-semibold text-[#111827]">{shelter.name}</p>

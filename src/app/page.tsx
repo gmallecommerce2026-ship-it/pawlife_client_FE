@@ -933,7 +933,7 @@ const SheltersSection = () => {
                 </div>
               </MobileMore>
               <div className="flex gap-2.5 lg:gap-3">
-                <PrimaryBtn href={`${ROUTES.shelters}/${shelter.id}`}>Xem hồ sơ</PrimaryBtn>
+                <PrimaryBtn href={`${ROUTES.shelters}/${shelter.id}?from=home`}>Xem hồ sơ</PrimaryBtn>
                 <OutlineBtn href={ROUTES.shelters}>Tất cả trạm</OutlineBtn>
               </div>
             </div>
