@@ -602,7 +602,8 @@ function DeskProps() {
   );
 }
 
-function Scene({ progressRef, touch, mode = 'main' }: { progressRef: MutableRefObject<number>; touch: boolean; mode?: 'main' | 'phone' }) {
+function Scene({ progressRef, touch, mode = 'main', spinRef }: { progressRef: MutableRefObject<number>; touch: boolean; mode?: 'main' | 'phone'; spinRef?: MutableRefObject<number> }) {
+  const extraSpin = useRef(0); // góc xoay thêm đã làm mượt (rad)
   const { gl, scene } = useThree();
   const smooth = useRef(0);
   const pullLocked = useRef(false); // đang chặn kéo-để-tải-lại hay không (chỉ đổi khi chuyển trạng thái, không ghi style mỗi khung hình)
@@ -783,7 +784,9 @@ function Scene({ progressRef, touch, mode = 'main' }: { progressRef: MutableRefO
     if (ringRef.current) {
       ringRef.current.position.set(evalCurve(RING_X, t) * xs, evalCurve(RING_Y, t), evalCurve(RING_Z, t));
       ringRef.current.rotation.x = evalCurve(RING_RX, t);
-      ringRef.current.rotation.y = spinAt(t) + Math.sin(state.clock.elapsedTime * 0.9) * 0.08;
+            // spinRef: 0 → 1 tương ứng 0 → 360°. damp để vòng xoay mượt, không giật theo từng nhịp cuộn
+      extraSpin.current = THREE.MathUtils.damp(extraSpin.current, (spinRef?.current ?? 0) * Math.PI * 2, 6, dt);
+      ringRef.current.rotation.y = spinAt(t) + extraSpin.current + Math.sin(state.clock.elapsedTime * 0.9) * 0.08;
     }
     if (lidRef.current) {
       const lidA = Math.max(0, evalCurve(LID, t)); // chặn âm: nội suy Catmull-Rom có thể làm nắp lún nhẹ vào hộp ở đầu hành trình
@@ -956,7 +959,7 @@ function Scene({ progressRef, touch, mode = 'main' }: { progressRef: MutableRefO
   );
 }
 
-export default function UnboxingScene({ progressRef, paused = false }: { progressRef: MutableRefObject<number>; paused?: boolean }) {
+export default function UnboxingScene({ progressRef, spinRef, paused = false }: { progressRef: MutableRefObject<number>; spinRef?: MutableRefObject<number>; paused?: boolean }) {
   // Component chỉ chạy ở trình duyệt (dynamic ssr:false) nên đọc matchMedia ngay lúc khởi tạo được
   const [touch] = useState<boolean>(() => isTouchDevice());
   return (
@@ -968,7 +971,7 @@ export default function UnboxingScene({ progressRef, paused = false }: { progres
       frameloop={paused ? 'never' : 'always'}
       style={{ background: 'transparent' }}
     >
-      <Scene progressRef={progressRef} touch={touch} />
+      <Scene progressRef={progressRef} touch={touch} spinRef={spinRef} />
     </Canvas>
   );
 }

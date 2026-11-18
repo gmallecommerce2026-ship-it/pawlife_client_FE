@@ -73,7 +73,7 @@ const CHAPTERS: Chapter[] = [
     lines: [{ text: 'Mỗi tag một mã riêng,' }, { text: 'mỗi bé một hồ sơ.', accent: true }],
   },
   {
-    range: [0.62, 0.85],
+    range: [0.67, 0.85],
     side: 'demo',
     eyebrow: 'Quét thử',
     lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
@@ -96,8 +96,17 @@ const mapScene = (v: number) =>
   v <= SCENE_A ? (v * SCENE_T) / SCENE_A : v <= SCENE_B ? SCENE_T : SCENE_T + ((v - SCENE_B) / (1 - SCENE_B)) * (1 - SCENE_T);
 
 /* Các giai đoạn của điện thoại theo tiến độ cuộn (tăng/giảm số để quét sớm/muộn hơn) */
+/* Vòng xoay thêm của tag (sau khi tag đã về vị trí cuối): tiến độ cuộn SPIN_A → SPIN_B tương ứng 0 → 360°.
+   Điện thoại chỉ hiện sau SPIN_B. */
+const SPIN_A = 0.57;
+const SPIN_B = 0.65;
+const spinAmount = (v: number) => {
+  const s = Math.min(1, Math.max(0, (v - SPIN_A) / (SPIN_B - SPIN_A)));
+  return s * s * (3 - 2 * s); // vào chậm, ra chậm
+};
+
 const stageAt = (v: number): DemoStage =>
-  v < 0.61 || v > SCENE_B ? 'off' : v < 0.65 ? 'enter' : v < 0.72 ? 'scan' : v < 0.765 ? 'locked' : 'result';
+  v < 0.66 || v > SCENE_B ? 'off' : v < 0.7 ? 'enter' : v < 0.77 ? 'scan' : v < 0.81 ? 'locked' : 'result';
 
 const POS: Record<Side, string> = {
   center: 'bottom-14 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
@@ -197,6 +206,7 @@ function ChapterBody({ c, index, total }: { c: Chapter; index: number; total: nu
 function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number) => void }) {
   const containerRef = useRef<HTMLElement>(null);
   const progressRef = useRef(0); // tiến độ cuộn, đọc trong cảnh 3D
+  const spinRef = useRef(0);  // tiến độ cuộn, đọc trong cảnh 3D
   const [active, setActive] = useState(-1); // chương đang hiện chữ, -1 = không có chữ
   const [dot, setDot] = useState(0);
   const [stage, setStage] = useState<DemoStage>('off');
@@ -247,6 +257,7 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
 
   useMotionValueEvent(p, 'change', (v) => {
     progressRef.current = mapScene(v); // cảnh 3D dùng tiến độ đã ánh xạ, chữ và điện thoại dùng v
+    spinRef.current = spinAmount(v);// cảnh 3D dùng tiến độ đã ánh xạ, chữ và điện thoại dùng v
     const st = armedRef.current ? stageAt(v) : 'off';
     setStage((prev) => (prev === st ? prev : st));
     const idx = CHAPTERS.findIndex((c) => v >= c.range[0] && v <= c.range[1]);
@@ -275,7 +286,7 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
         {/* Cảnh 3D duy nhất: hộp + vòng */}
         {mounted && (
           <div className="pointer-events-none absolute inset-0">
-            <UnboxingScene progressRef={progressRef} />
+            <UnboxingScene progressRef={progressRef} spinRef={spinRef} />
           </div>
         )}
 
