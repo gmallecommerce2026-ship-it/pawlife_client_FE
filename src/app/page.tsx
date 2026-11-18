@@ -1,6 +1,7 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
+import React, { useEffect, useState, useRef } from "react";
 import { motion, useReducedMotion, useInView, AnimatePresence, useAnimation, useMotionValue, animate } from "framer-motion";
 import ScrollUnboxingHero from "@/components/home/ScrollUnboxingHero";
 import Link from "next/link";
