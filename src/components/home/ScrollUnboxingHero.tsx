@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
 import { AnimatePresence, motion, useMotionValueEvent, useScroll, useSpring, useTransform } from 'framer-motion';
 
+import PhoneScanDemo, { type DemoStage } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
 
 export const BRAND_LOGO = '/assets/brand/logo-placeholder.svg';
@@ -33,7 +34,7 @@ const FEATURES = [
   { icon: ShieldCheck, title: 'An toàn', text: 'Liên lạc với chủ khi cần thiết' },
 ];
 
-type Side = 'center' | 'left' | 'right';
+type Side = 'center' | 'left' | 'right' | 'demo';
 type Chapter = {
   range: [number, number];
   side: Side;
@@ -43,35 +44,42 @@ type Chapter = {
   cta?: boolean;
 };
 
-/* Mỗi chương có khoảng cuộn riêng; giữa các chương không có chữ nào. */
+/* Mỗi chương có khoảng cuộn riêng; giữa các chương không có chữ nào.
+   range tính theo tiến độ cuộn của hero (0–1). Đoạn 0.57–0.86 là phần điện thoại quét thử. */
 const CHAPTERS: Chapter[] = [
   {
-    range: [0, 0.12],
+    range: [0, 0.08],
     side: 'center',
     eyebrow: 'QR Tag · Dành riêng cho thú cưng',
     lines: [{ text: 'Một chiếc tag nhỏ.' }, { text: 'Cả hồ sơ của bé.', accent: true }],
   },
   {
-    range: [0.16, 0.28],
+    range: [0.11, 0.19],
     side: 'left',
     eyebrow: 'Mở hộp',
     lines: [{ text: 'Bên trong là một danh tính riêng cho bé của bạn.' }],
   },
   {
-    range: [0.36, 0.44],
+    range: [0.25, 0.3],
     side: 'right',
     eyebrow: 'Cất cánh',
     lines: [{ text: 'Từ hộp nhỏ,' }, { text: 'đến cổ bé yêu.', accent: true }],
   },
-  { range: [0.52, 0.64], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
+  { range: [0.355, 0.44], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
   {
-    range: [0.72, 0.8],
+    range: [0.49, 0.54],
     side: 'left',
     eyebrow: 'Mặt sau',
     lines: [{ text: 'Mỗi tag một mã riêng,' }, { text: 'mỗi bé một hồ sơ.', accent: true }],
   },
   {
-    range: [0.88, 1],
+    range: [0.58, 0.85],
+    side: 'demo',
+    eyebrow: 'Quét thử',
+    lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
+  },
+  {
+    range: [0.92, 1],
     side: 'center',
     eyebrow: 'Sẵn sàng đồng hành',
     lines: [{ text: 'Gắn tag cho bé, và luôn có người tìm được bé khi cần.' }],
@@ -79,16 +87,30 @@ const CHAPTERS: Chapter[] = [
   },
 ];
 
+/* Tiến độ cảnh 3D: chạy hết chương "Mặt sau" (t = 0.82) trong 56% đầu, đứng yên lúc điện thoại quét thử,
+   rồi chạy nốt phần CTA. */
+const SCENE_A = 0.56;
+const SCENE_B = 0.86;
+const SCENE_T = 0.82;
+const mapScene = (v: number) =>
+  v <= SCENE_A ? (v * SCENE_T) / SCENE_A : v <= SCENE_B ? SCENE_T : SCENE_T + ((v - SCENE_B) / (1 - SCENE_B)) * (1 - SCENE_T);
+
+/* Các giai đoạn của điện thoại theo tiến độ cuộn (tăng/giảm số để quét sớm/muộn hơn) */
+const stageAt = (v: number): DemoStage =>
+  v < 0.57 || v > SCENE_B ? 'off' : v < 0.62 ? 'enter' : v < 0.7 ? 'scan' : v < 0.745 ? 'locked' : 'result';
+
 const POS: Record<Side, string> = {
   center: 'bottom-14 left-1/2 -translate-x-1/2 text-center w-[min(90vw,520px)]',
   left: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-12 lg:right-auto lg:top-1/2 lg:-translate-y-1/2 lg:w-[300px]',
   right: 'bottom-24 left-5 right-5 text-left lg:bottom-auto lg:left-auto lg:right-12 lg:top-1/2 lg:-translate-y-1/2 lg:w-[300px]',
+  demo: 'top-36 left-5 right-5 text-left lg:top-1/2 lg:left-12 lg:right-auto lg:-translate-y-1/2 lg:w-[300px]',
 };
 
 const MASK_FROM: Record<Side, string> = {
   left: 'inset(0% 100% 0% 0%)',
   right: 'inset(0% 0% 0% 100%)',
   center: 'inset(0% 0% 100% 0%)',
+  demo: 'inset(0% 100% 0% 0%)',
 };
 const MASK_TO = 'inset(0% 0% 0% 0%)';
 
@@ -177,6 +199,7 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   const progressRef = useRef(0); // tiến độ cuộn, đọc trong cảnh 3D
   const [active, setActive] = useState(-1); // chương đang hiện chữ, -1 = không có chữ
   const [dot, setDot] = useState(0);
+  const [stage, setStage] = useState<DemoStage>('off'); 
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
   const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
@@ -218,7 +241,9 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   }, [onPassed]);
 
   useMotionValueEvent(p, 'change', (v) => {
-    progressRef.current = v;
+    progressRef.current = mapScene(v); // cảnh 3D dùng tiến độ đã ánh xạ, chữ và điện thoại dùng v
+    const st = stageAt(v);
+    setStage((prev) => (prev === st ? prev : st));
     const idx = CHAPTERS.findIndex((c) => v >= c.range[0] && v <= c.range[1]);
     setActive((prev) => (prev === idx ? prev : idx));
     let d = 0;
@@ -236,7 +261,7 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
   const barScale = useTransform(p, [0, 1], [0, 1]);
 
   return (
-    <motion.section ref={containerRef} className="relative h-[380svh] w-full" style={{ backgroundColor: DESK_BASE, opacity: fade }} aria-label="Giới thiệu QR Tag">
+    <motion.section ref={containerRef} className="relative h-[560svh] w-full" style={{ backgroundColor: DESK_BASE, opacity: fade }} aria-label="Giới thiệu QR Tag">
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
 
         {/* Vignette: mép khung tối hơn, trung tâm sáng hơn */}
@@ -244,10 +269,17 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
 
         {/* Cảnh 3D duy nhất: hộp + vòng */}
         {mounted && (
-          <div className="pointer-events-none absolute inset-0">
+          <motion.div
+            className="pointer-events-none absolute inset-0"
+            animate={{ opacity: stage === 'off' ? 1 : 0.15, scale: stage === 'off' ? 1 : 0.96 }}
+            transition={{ duration: 0.8, ease: EASE_OUT }}
+          >
             <UnboxingScene progressRef={progressRef} />
-          </div>
+          </motion.div>
         )}
+
+        {/* iPhone quét QR → màn hình Scanned Pet */}
+        <PhoneScanDemo stage={stage} />
 
         <img src={BRAND_LOGO} alt="PawLife" className="absolute left-6 top-24 h-9 w-auto lg:left-12" />
         <motion.div className="absolute left-0 top-0 h-[3px] w-full origin-left" style={{ scaleX: barScale, backgroundColor: COLOR.brand }} />
