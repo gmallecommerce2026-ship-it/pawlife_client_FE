@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
-import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent, useScroll, useSpring, useTransform } from 'framer-motion';
+import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent, useScroll, useTransform } from 'framer-motion';
 import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H, SCREEN_W, SCREEN_H, BEZEL } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
 
@@ -29,6 +29,12 @@ const FADE_END = 0.3;                    // banner mờ hẳn
 const MOVE_A = 0.3, MOVE_B = 0.75;       // điện thoại dịch chỗ
 const FINALE_A = 0.4, FINALE_B = 0.8;    // nội dung "Tải ứng dụng" hiện
 const HOME_AT = 0.72;                    
+/* ===== Độ mượt khi cuộn nhanh =====
+   Animation chạy theo một "con trỏ" đuổi theo vị trí cuộn thật, với tốc độ tối đa cố định.
+   Cuộn nhanh cỡ nào thì animation cũng chỉ đi tối đa MAX_SCREENS_PER_SEC màn hình/giây
+   (luôn đi hết quỹ đạo, không nhảy cóc). Cuộn chậm thì bám sát, chỉ trễ nhẹ theo SMOOTH_TAU. */
+const MAX_SCREENS_PER_SEC = 1.6;  // giảm = chậm/mượt hơn khi cuộn nhanh, tăng = nhanh hơn
+const SMOOTH_TAU = 0.12;          // giây; tăng = độ trễ êm lớn hơn
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const smooth = (x: number) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -244,7 +250,27 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
   };
 
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
-  const p = useSpring(scrollYProgress, { stiffness: 90, damping: 30, mass: 0.5 });
+  const p = useMotionValue(scrollYProgress.get());
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const maxRate = MAX_SCREENS_PER_SEC / TOTAL_SPAN; // tiến độ (0–1) mỗi giây
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const cur = p.get();
+      const diff = scrollYProgress.get() - cur;
+      if (Math.abs(diff) > 1e-5) {
+        let step = diff * (1 - Math.exp(-dt / SMOOTH_TAU));
+        const cap = maxRate * dt;
+        step = Math.max(-cap, Math.min(cap, step));
+        p.set(cur + step);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [p, scrollYProgress]);
 
   const vMV = useTransform(p, (x) => Math.min(1, (x * TOTAL_SPAN) / MAIN_SPAN));
   const eMV = useTransform(p, (x) => clamp01((x * TOTAL_SPAN - MAIN_SPAN) / EXIT_SPAN));
