@@ -188,6 +188,14 @@ const SKIRT: Key[] = [[0, 0], [0.028, 1], [0.04, 1], [1, 1]];
 const CAM_Y: Key[] = [[0, 6.5], [0.5, 5.4], [1, 6.5]];
 const CAM_Z: Key[] = [[0, 12], [0.5, 9.5], [1, 12]];
 const LOOK_Y = 0.4;        // camera nhìn vào điểm (0, LOOK_Y, 0)
+
+/* ===== Camera của điện thoại (cảnh thứ hai trong màn hình iPhone) ===== */
+const PHONE_T = 0.82;                       // trạng thái cảnh: hộp đã mở, tag lộ mặt sau (= SCENE_T bên ScrollUnboxingHero)
+const PHONE_RING: [number, number, number] = [0, 1.3, 2.4]; // tag "được cầm" trước hộp
+const PHONE_DIR = new THREE.Vector3(0, 0.55, 0.83).normalize(); // hướng từ tag tới camera (nhìn chếch xuống)
+const PHONE_DIST = 5.0;                     // khoảng cách khi đã lấy nét (nhỏ hơn → tag to hơn trong khung)
+const PHONE_DIST_FAR = 8.5;                 // khoảng cách lúc mới bật camera
+const PHONE_SPIN = 0;                       // nếu màn hình thấy MẶT TRƯỚC của tag thay vì mặt có QR, đổi thành Math.PI
 /* Màn hình dọc/hẹp (điện thoại): camera tự lùi ra để luôn thấy cỏ bị hộp đè ở hai bên trái/phải.
    SIDE_NEED = nửa bề ngang (đơn vị thế giới) cần nhìn thấy tại mép TRƯỚC của hộp; hộp rộng 4 (nửa = 2) nên 3.1 chừa ~1.1 đơn vị cỏ mỗi bên.
    Tăng số này → camera xa hơn, hộp nhỏ hơn, thấy nhiều cỏ hơn. Màn hình ngang/PC cần ít hơn khoảng cách gốc nên không bị ảnh hưởng. */
@@ -594,7 +602,7 @@ function DeskProps() {
   );
 }
 
-function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; touch: boolean }) {
+function Scene({ progressRef, touch, mode = 'main' }: { progressRef: MutableRefObject<number>; touch: boolean; mode?: 'main' | 'phone' }) {
   const { gl, scene } = useThree();
   const smooth = useRef(0);
   const pullLocked = useRef(false); // đang chặn kéo-để-tải-lại hay không (chỉ đổi khi chuyển trạng thái, không ghi style mỗi khung hình)
@@ -746,10 +754,11 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
   useFrame((state, delta) => {
     // Làm mượt tiến độ: không giật khi cuộn nhanh hoặc dừng đột ngột
     // Mobile: bám nhanh hơn (đỡ trễ vì hero đã có spring) và chặn khung hình khựng làm tiến độ nhảy cóc; PC giữ nguyên
+    const phone = mode === 'phone';
     const dt = touch ? Math.min(delta, MAX_DT_TOUCH) : delta;
-    const target = progressRef.current;
-    let t = (smooth.current = THREE.MathUtils.damp(smooth.current, target, touch ? DAMP_TOUCH : DAMP_DESKTOP, dt));
-    if (touch) {
+    const target = phone ? PHONE_T : progressRef.current;
+    let t = (smooth.current = phone ? PHONE_T : THREE.MathUtils.damp(smooth.current, target, touch ? DAMP_TOUCH : DAMP_DESKTOP, dt));
+    if (touch && !phone) {
       // Về sát đầu trang thì chốt đúng trạng thái đóng (damp chỉ tiến gần chứ không bao giờ chạm 0 → gờ/nắp còn hở một chút)
       if (target < CLOSED_EPS && t < CLOSED_EPS) t = smooth.current = target;
       const needLock = target > CLOSED_EPS || t > CLOSED_EPS; // chưa đóng hẳn → khoá kéo-để-tải-lại
@@ -799,6 +808,26 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
 
     cam.position.set(0, LOOK_Y + (camY - LOOK_Y) * m, camZ * m); // lùi dọc theo đúng hướng nhìn cũ
     cam.lookAt(0, LOOK_Y, 0);
+    if (phone && ringRef.current) {
+      const time = state.clock.elapsedTime;
+      // tag "nằm trong tay": hơi rung nhẹ như cầm thật
+      ringRef.current.position.set(
+        PHONE_RING[0] + Math.sin(time * 1.3) * 0.02,
+        PHONE_RING[1] + Math.sin(time * 1.7) * 0.025,
+        PHONE_RING[2],
+      );
+      ringRef.current.rotation.y += PHONE_SPIN;
+      // camera tiến từ xa lại gần (lấy nét) trong ~2 giây đầu rồi giữ, tay cầm máy hơi lắc
+      const k = THREE.MathUtils.smoothstep(time, 0.3, 2.4);
+      const d = THREE.MathUtils.lerp(PHONE_DIST_FAR, PHONE_DIST, k);
+      const rp = ringRef.current.position;
+      cam.position.set(
+        rp.x + Math.sin(time * 0.7) * 0.06,
+        rp.y + d * PHONE_DIR.y + Math.sin(time * 0.9) * 0.04,
+        rp.z + d * PHONE_DIR.z,
+      );
+      cam.lookAt(rp.x, rp.y, rp.z);
+    }
     // Lùi camera bao nhiêu thì đẩy sương mù ra bấy nhiêu, để hộp và cỏ không bị phủ màu be nhiều hơn
     if (scene.fog) {
       const fog = scene.fog as THREE.Fog;
@@ -926,7 +955,7 @@ function Scene({ progressRef, touch }: { progressRef: MutableRefObject<number>; 
   );
 }
 
-export default function UnboxingScene({ progressRef }: { progressRef: MutableRefObject<number> }) {
+export default function UnboxingScene({ progressRef, paused = false }: { progressRef: MutableRefObject<number>; paused?: boolean }) {
   // Component chỉ chạy ở trình duyệt (dynamic ssr:false) nên đọc matchMedia ngay lúc khởi tạo được
   const [touch] = useState<boolean>(() => isTouchDevice());
   return (
@@ -934,10 +963,28 @@ export default function UnboxingScene({ progressRef }: { progressRef: MutableRef
       shadows
       camera={{ position: [0, 6.5, 12], fov: 30 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-      dpr={touch ? [1, DPR_MAX_TOUCH] : [1, 2]}
+            dpr={touch ? [1, DPR_MAX_TOUCH] : [1, 2]}
+      frameloop={paused ? 'never' : 'always'}
       style={{ background: 'transparent' }}
     >
       <Scene progressRef={progressRef} touch={touch} />
+    </Canvas>
+  );
+}
+
+/* Cảnh thứ hai: "camera" bên trong màn hình iPhone (cùng cỏ, hộp, tag nhưng góc nhìn của điện thoại) */
+export function PhoneCamScene() {
+  const [touch] = useState<boolean>(() => isTouchDevice());
+  const unused = useRef(0);
+  return (
+    <Canvas
+      shadows
+      camera={{ position: [0, 6, 9], fov: 58, near: 0.1, far: 100 }}
+      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      dpr={touch ? [1, 1.25] : [1, 1.75]}
+    >
+      <color attach="background" args={[FOG_COLOR]} />
+      <Scene progressRef={unused} touch={touch} mode="phone" />
     </Canvas>
   );
 }

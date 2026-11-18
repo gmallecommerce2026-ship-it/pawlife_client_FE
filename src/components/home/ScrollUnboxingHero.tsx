@@ -274,7 +274,7 @@ function ScrollUnboxingHeroBody({ onPassed }: { onPassed: (sectionHeight: number
             animate={{ opacity: stage === 'off' ? 1 : 0.15, scale: stage === 'off' ? 1 : 0.96 }}
             transition={{ duration: 0.8, ease: EASE_OUT }}
           >
-            <UnboxingScene progressRef={progressRef} />
+            <UnboxingScene progressRef={progressRef} paused={stage !== 'off'} />
           </motion.div>
         )}
 
