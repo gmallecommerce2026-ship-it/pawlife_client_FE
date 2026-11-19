@@ -214,18 +214,6 @@ function ChapterBody({ c, index, total }: { c: Chapter; index: number; total: nu
           ))}
         </ul>
       )}
-
-      {c.cta && (
-        <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5, duration: 0.6, ease: EASE_OUT }}>
-          <Link
-            href={CTA_HREF}
-            className="mt-6 inline-flex items-center justify-center rounded-full px-7 py-3 text-[15px] font-bold text-white shadow-lg transition hover:brightness-110"
-            style={{ backgroundColor: COLOR.brand }}
-          >
-            Tìm hiểu QR Tag
-          </Link>
-        </motion.div>
-      )}
     </>
   );
 }
@@ -360,51 +348,103 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
   const chapter = active >= 0 ? CHAPTERS[active] : null;
   const canTap = step < 3 && !busy;
 
-  /* ===== GHIM TRANG: cuộn tới hero thì không cho cuộn xuống tiếp cho tới khi tap 3 xong =====
-     Chặn ở 4 đường: bánh xe chuột, vuốt cảm ứng, phím, và chốt cuối bằng scroll (phòng quán tính/kéo thanh cuộn).
-     Chỉ chặn chiều XUỐNG; cuộn lên vẫn tự do. */
+  /* ===== GHIM TRANG: cuộn tới hero thì KHOÁ HẲN thanh cuộn (overflow: hidden) cho tới khi tap 3 xong =====
+     Cách cũ (chặn sự kiện + kéo trang về bằng scrollTo mỗi lần scroll) bị giật vì trình duyệt cuộn rồi mình lại kéo ngược.
+     Cách mới: chạm mốc là canh vị trí đúng MỘT lần rồi khoá overflow trên html + body → không còn cuộn thì không còn giật.
+     Cuộn LÊN (lăn chuột lên, ↑/PageUp/Home, vuốt xuống) sẽ mở khoá để quay lại trang trên; cuộn xuống tới hero lần nữa thì khoá lại. */
+  const unlockRef = useRef<() => void>(() => {});
   useEffect(() => {
-    const locked = () => {
-      const el = containerRef.current;
-      return !!el && stepRef.current < 3 && el.getBoundingClientRect().top <= 1;
+    const html = document.documentElement;
+    const body = document.body;
+    let locked = false;
+    let prev = { h: '', b: '', pr: '' };
+    let lastScrollY = window.scrollY;
+    let touchStartY = 0;
+
+    const top = () => containerRef.current?.getBoundingClientRect().top ?? Infinity;
+
+    const lock = () => {
+      if (locked || stepRef.current >= 3) return;
+      const t = top();
+      if (!Number.isFinite(t)) return;
+      if (t < -window.innerHeight * 0.5) return; // đã ở hẳn bên dưới hero (vd. reload giữa chừng) thì không kéo ngược lên
+      // Canh đúng đỉnh hero một lần (instant vì html có scroll-behavior: smooth)
+      if (Math.abs(t) > 0.5) window.scrollTo({ top: window.scrollY + t, behavior: 'instant' as ScrollBehavior });
+      const sbw = window.innerWidth - html.clientWidth; // bù bề rộng thanh cuộn để trang không bị xô ngang khi ẩn nó
+      prev = { h: html.style.overflow, b: body.style.overflow, pr: html.style.paddingRight };
+      html.style.overflow = 'hidden';
+      body.style.overflow = 'hidden';
+      if (sbw > 0) html.style.paddingRight = `${sbw}px`;
+      locked = true;
+      lastScrollY = window.scrollY;
     };
+    const unlock = () => {
+      if (!locked) return;
+      html.style.overflow = prev.h;
+      body.style.overflow = prev.b;
+      html.style.paddingRight = prev.pr;
+      locked = false;
+      lastScrollY = window.scrollY;
+    };
+    unlockRef.current = unlock;
+
+    // Đang cuộn xuống mà hero chạm đỉnh màn hình → khoá
+    const onScroll = () => {
+      const y = window.scrollY;
+      const down = y >= lastScrollY;
+      lastScrollY = y;
+      if (!locked && down && stepRef.current < 3 && top() <= 2) lock();
+    };
+    // Lăn chuột: sắp vượt qua đỉnh hero thì dừng đúng đỉnh (không để trình duyệt cuộn lố rồi kéo lại)
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY > 0 && locked()) e.preventDefault();
+      if (stepRef.current >= 3) return;
+      if (locked) {
+        if (e.deltaY < 0) unlock(); // muốn lên → trả cuộn cho trình duyệt
+        else e.preventDefault();
+        return;
+      }
+      if (e.deltaY <= 0) return;
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * window.innerHeight : e.deltaY;
+      const t = top();
+      if (t <= 2 || t <= dy) {
+        if (t <= window.innerHeight) { e.preventDefault(); lock(); }
+      }
     };
-    let lastY = 0;
-    const onTouchStart = (e: TouchEvent) => { lastY = e.touches[0]?.clientY ?? 0; };
+    const onTouchStart = (e: TouchEvent) => { touchStartY = e.touches[0]?.clientY ?? 0; };
     const onTouchMove = (e: TouchEvent) => {
-      const y = e.touches[0]?.clientY ?? lastY;
-      const goingDown = y < lastY; // ngón tay vuốt lên = nội dung cuộn xuống
-      lastY = y;
-      if (goingDown && locked() && e.cancelable) e.preventDefault();
+      if (stepRef.current >= 3 || !locked) return;
+      const y = e.touches[0]?.clientY ?? touchStartY;
+      if (y - touchStartY > 24) unlock();            // vuốt xuống (đọc ngược lên) → mở khoá
+      else if (e.cancelable) e.preventDefault();      // vuốt lên (cuộn xuống) → chặn
     };
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (!['ArrowDown', 'PageDown', 'End', ' '].includes(e.key)) return;
+      if (stepRef.current >= 3 || !locked) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      if (locked()) e.preventDefault();
+      if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) unlock();
+      else if (['ArrowDown', 'PageDown', 'End', ' '].includes(e.key)) e.preventDefault();
     };
-    const onScroll = () => {
-      const el = containerRef.current;
-      if (!el || stepRef.current >= 3) return;
-      const top = el.getBoundingClientRect().top;
-      // html có scroll-behavior: smooth nên phải ép 'instant' mới ghim ngay được
-      if (top < 0) window.scrollTo({ top: window.scrollY + top, behavior: 'instant' as ScrollBehavior });
-    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
     return () => {
+      unlock();
+      unlockRef.current = () => {};
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onScroll);
     };
   }, []);
+  // Tap 3 xong → mở khoá hẳn, trang cuộn bình thường
+  useEffect(() => {
+    if (step >= 3) unlockRef.current();
+  }, [step]);
 
   /* ===== GỢI Ý TAP: hiện khi hero đang trong màn hình + đang chờ tap; lặp mỗi 10s nếu chưa ai làm gì ===== */
   const hintInView = useInView(containerRef, { amount: 0.6 });
