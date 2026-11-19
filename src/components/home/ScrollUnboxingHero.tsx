@@ -4,12 +4,13 @@
 //   Tap 1 : v 0 → SCENE_END (0.6)  — mở hộp, tag bay + xoay, về chính giữa màn hình (dừng TRƯỚC khi lật ra mặt QR)
 //   Tap 2 : v 0.6 → 1              — tag xoay ra mặt sau có QR, điện thoại hiện lên, quét, ra kết quả
 //   Tap 3 : e 0 → 1                — banner mờ dần, điện thoại dịch sang trái, nội dung "Tải ứng dụng" hiện
+// Khi cuộn tới hero thì trang bị ghim lại (không cuộn xuống tiếp được) cho đến khi tap 3 chạy xong; cuộn lên vẫn được.
 // Sau tap 3 trang trở lại cuộn bình thường. Tap khi đang chạy animation sẽ bị bỏ qua.
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { History, Fingerprint, ShieldCheck } from 'lucide-react';
+import { History, Fingerprint, ShieldCheck, Pointer } from 'lucide-react';
 import { AnimatePresence, animate, motion, useInView, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
 import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H, SCREEN_W, SCREEN_H, BEZEL } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
@@ -22,10 +23,19 @@ const DESK_BASE = '#CDB39A';
 /* ===== Thời lượng mỗi lần tap (giây) — tăng số = animation chậm hơn ===== */
 const TAP_SECONDS = {
   open: 11,   // Tap 1: mở hộp → xoay → về giữa màn (v: 0 → SCENE_END). Mỗi chương chữ hiện ~1.8–2s
-  scan: 8,    // Tap 2: lật QR → điện thoại hiện → quét → kết quả (v: SCENE_END → 1)
+  scan: 8,    // Tap 2: lật QR → điện thoại hiện → quét → kết quả (v: SCENE_END → 1), CHƯA gồm SCAN_HOLD_SECONDS
   exit: 2.8,  // Tap 3: mờ banner → điện thoại dịch trái → hiện nội dung tải app (e: 0 → 1)
 };
-const TAP_HINTS = ['Chạm để mở hộp', 'Chạm để quét thử', 'Chạm để tiếp tục'];
+/* Kéo dài đoạn quét QR: giữ nguyên tiến độ ở giữa pha 'scan' (v = SCAN_HOLD_AT, nằm trong 0.8–0.86)
+   thêm SCAN_HOLD_SECONDS giây rồi mới chạy tiếp sang 'locked' → màn kết quả. Chỉnh số giây để dài/ngắn hơn. */
+const SCAN_HOLD_AT = 0.83;
+const SCAN_HOLD_SECONDS = 1.5;
+
+/* Gợi ý tap: ngón tay chạm 2 lần + gợn sóng. Hiện khi hero đang ở trong màn hình và chưa ai tap;
+   cứ HINT_EVERY_MS (tính từ đầu lần hiện trước) lại hiện lại cho tới khi người dùng tap. */
+const HINT_EVERY_MS = 10000;
+const HINT_PLAY_MS = 2600;
+const HINT_FIRST_DELAY_MS = 800;
 
 /* ===== Mốc của đoạn exit (0 → 1) ===== */
 const FADE_END = 0.3;                    // banner mờ hẳn
@@ -293,7 +303,17 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
     setBusy(true);
     const ctrl =
       s === 0 ? animate(vMV, SCENE_END, { duration: TAP_SECONDS.open, ease: 'linear' })
-      : s === 1 ? animate(vMV, 1, { duration: TAP_SECONDS.scan, ease: 'linear' })
+      : s === 1 ? (() => {
+          // 0.6 → SCAN_HOLD_AT (tốc độ như cũ) → đứng yên SCAN_HOLD_SECONDS → SCAN_HOLD_AT → 1
+          const rate = (1 - SCENE_END) / TAP_SECONDS.scan;
+          const t1 = (SCAN_HOLD_AT - SCENE_END) / rate;
+          const total = TAP_SECONDS.scan + SCAN_HOLD_SECONDS;
+          return animate(vMV, [SCENE_END, SCAN_HOLD_AT, SCAN_HOLD_AT, 1], {
+            duration: total,
+            ease: 'linear',
+            times: [0, t1 / total, (t1 + SCAN_HOLD_SECONDS) / total, 1],
+          });
+        })()
       : animate(eMV, 1, { duration: TAP_SECONDS.exit, ease: 'easeInOut' });
     ctrlRef.current = ctrl;
     ctrl.then(() => {
@@ -339,6 +359,78 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
   const heroInView = useInView(containerRef, { margin: '200px 0px 200px 0px' });
   const chapter = active >= 0 ? CHAPTERS[active] : null;
   const canTap = step < 3 && !busy;
+
+  /* ===== GHIM TRANG: cuộn tới hero thì không cho cuộn xuống tiếp cho tới khi tap 3 xong =====
+     Chặn ở 4 đường: bánh xe chuột, vuốt cảm ứng, phím, và chốt cuối bằng scroll (phòng quán tính/kéo thanh cuộn).
+     Chỉ chặn chiều XUỐNG; cuộn lên vẫn tự do. */
+  useEffect(() => {
+    const locked = () => {
+      const el = containerRef.current;
+      return !!el && stepRef.current < 3 && el.getBoundingClientRect().top <= 1;
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY > 0 && locked()) e.preventDefault();
+    };
+    let lastY = 0;
+    const onTouchStart = (e: TouchEvent) => { lastY = e.touches[0]?.clientY ?? 0; };
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? lastY;
+      const goingDown = y < lastY; // ngón tay vuốt lên = nội dung cuộn xuống
+      lastY = y;
+      if (goingDown && locked() && e.cancelable) e.preventDefault();
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!['ArrowDown', 'PageDown', 'End', ' '].includes(e.key)) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (locked()) e.preventDefault();
+    };
+    const onScroll = () => {
+      const el = containerRef.current;
+      if (!el || stepRef.current >= 3) return;
+      const top = el.getBoundingClientRect().top;
+      // html có scroll-behavior: smooth nên phải ép 'instant' mới ghim ngay được
+      if (top < 0) window.scrollTo({ top: window.scrollY + top, behavior: 'instant' as ScrollBehavior });
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
+  /* ===== GỢI Ý TAP: hiện khi hero đang trong màn hình + đang chờ tap; lặp mỗi 10s nếu chưa ai làm gì ===== */
+  const hintInView = useInView(containerRef, { amount: 0.6 });
+  const [hintShow, setHintShow] = useState(false);
+  useEffect(() => {
+    if (!mounted || !canTap || !hintInView) {
+      setHintShow(false);
+      return;
+    }
+    let t1 = 0;
+    let t2 = 0;
+    const cycle = (wait: number) => {
+      t1 = window.setTimeout(() => {
+        setHintShow(true);
+        t2 = window.setTimeout(() => {
+          setHintShow(false);
+          cycle(HINT_EVERY_MS - HINT_PLAY_MS);
+        }, HINT_PLAY_MS);
+      }, wait);
+    };
+    cycle(HINT_FIRST_DELAY_MS);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [mounted, canTap, hintInView, step]);
 
   return (
     <section
@@ -421,25 +513,37 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
           </div>
         )}
 
-        {/* ===== GỢI Ý TAP: chỉ hiện khi đang đứng yên chờ lần chạm kế tiếp ===== */}
+        {/* ===== GỢI Ý TAP: ngón tay chạm 2 lần + gợn sóng (không bắt sự kiện chuột) ===== */}
         <AnimatePresence>
-          {mounted && canTap && (
+          {hintShow && (
             <motion.div
-              key={step}
               aria-hidden
-              className="pointer-events-none absolute bottom-3 right-3 z-40 flex items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-[13px] font-semibold text-white backdrop-blur-md lg:bottom-6 lg:right-8"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.4, delay: step === 0 ? 0.6 : 0.3 }}
+              className="pointer-events-none absolute left-1/2 top-[66%] z-40 -ml-10"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
             >
-              <motion.i
-                className="block h-2 w-2 rounded-full"
-                style={{ backgroundColor: COLOR.brand }}
-                animate={{ scale: [1, 1.7, 1], opacity: [1, 0.5, 1] }}
-                transition={{ duration: 1.4, repeat: Infinity }}
-              />
-              {TAP_HINTS[step]}
+              <div className="relative h-20 w-20">
+                {[0.84, 1.56].map((d) => (
+                  <motion.span
+                    key={d}
+                    className="absolute left-[14px] top-[2px] h-10 w-10 rounded-full border-2"
+                    style={{ borderColor: COLOR.brand, backgroundColor: 'rgba(232,155,90,0.18)' }}
+                    initial={{ scale: 0.3, opacity: 0 }}
+                    animate={{ scale: [0.3, 1.7], opacity: [0.95, 0] }}
+                    transition={{ duration: 0.8, delay: d, ease: 'easeOut' }}
+                  />
+                ))}
+                <motion.div
+                  className="absolute left-[14px] top-[2px] text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
+                  initial={{ y: 16, opacity: 0 }}
+                  animate={{ y: [16, 0, 8, 0, 8, 0, 16], scale: [1, 1, 0.9, 1, 0.9, 1, 1], opacity: [0, 1, 1, 1, 1, 1, 0] }}
+                  transition={{ duration: HINT_PLAY_MS / 1000 - 0.2, times: [0, 0.2, 0.35, 0.5, 0.65, 0.8, 1], ease: 'easeInOut' }}
+                >
+                  <Pointer size={40} strokeWidth={1.6} fill="#fff" stroke={COLOR.ink} />
+                </motion.div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
