@@ -1,16 +1,16 @@
 'use client';
 // src/components/home/ScrollUnboxingHero.tsx
-// Một khung ghim (sticky) duy nhất, cuộn điều khiển 3 pha:
-//   A) 0 → MAIN_SPAN       : banner 3D + quét QR (các chương cũ)
-//   B) exit 0 → 0.3        : banner mờ dần, điện thoại đứng yên giữa
-//   C) exit 0.3 → 0.75     : điện thoại dịch sang trái, nội dung "Tải ứng dụng" mờ hiện
-//   (exit 0.75 → 1 giữ nguyên một nhịp rồi trang mới cuộn tiếp bình thường)
+// Hero 3D điều khiển bằng TAP (không còn scroll). Một khung 100svh, 3 lần chạm = 3 đoạn animation:
+//   Tap 1 : v 0 → SCENE_END (0.6)  — mở hộp, tag bay + xoay, về chính giữa màn hình (dừng TRƯỚC khi lật ra mặt QR)
+//   Tap 2 : v 0.6 → 1              — tag xoay ra mặt sau có QR, điện thoại hiện lên, quét, ra kết quả
+//   Tap 3 : e 0 → 1                — banner mờ dần, điện thoại dịch sang trái, nội dung "Tải ứng dụng" hiện
+// Sau tap 3 trang trở lại cuộn bình thường. Tap khi đang chạy animation sẽ bị bỏ qua.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { History, Fingerprint, ShieldCheck } from 'lucide-react';
-import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent, useScroll, useTransform } from 'framer-motion';
+import { AnimatePresence, animate, motion, useInView, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
 import PhoneScanDemo, { type DemoStage, PHONE_OUT_W, PHONE_OUT_H, SCREEN_W, SCREEN_H, BEZEL } from './PhoneScanDemo';
 const UnboxingScene = dynamic(() => import('./UnboxingScene'), { ssr: false });
 
@@ -19,22 +19,19 @@ const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const COLOR = { brand: '#E89B5A', brandDk: '#C97A3C', cream: '#FFF8F3', ink: '#111827', muted: '#6B7280' };
 const DESK_BASE = '#CDB39A';
 
-/* ===== Độ dài cuộn (đơn vị: 1 màn hình) ===== */
-const MAIN_SPAN = 5;     // đoạn banner + quét (tương đương 600svh cũ: 6 - 1 = 5)
-const EXIT_SPAN = 2.5;   // đoạn mờ banner → dịch điện thoại → hiện nội dung. Tăng số này = cuộn lâu hơn
-const TOTAL_SPAN = MAIN_SPAN + EXIT_SPAN;
+/* ===== Thời lượng mỗi lần tap (giây) — tăng số = animation chậm hơn ===== */
+const TAP_SECONDS = {
+  open: 11,   // Tap 1: mở hộp → xoay → về giữa màn (v: 0 → SCENE_END). Mỗi chương chữ hiện ~1.8–2s
+  scan: 8,    // Tap 2: lật QR → điện thoại hiện → quét → kết quả (v: SCENE_END → 1)
+  exit: 2.8,  // Tap 3: mờ banner → điện thoại dịch trái → hiện nội dung tải app (e: 0 → 1)
+};
+const TAP_HINTS = ['Chạm để mở hộp', 'Chạm để quét thử', 'Chạm để tiếp tục'];
 
 /* ===== Mốc của đoạn exit (0 → 1) ===== */
 const FADE_END = 0.3;                    // banner mờ hẳn
 const MOVE_A = 0.3, MOVE_B = 0.75;       // điện thoại dịch chỗ
 const FINALE_A = 0.4, FINALE_B = 0.8;    // nội dung "Tải ứng dụng" hiện
-const HOME_AT = 0.72;                    
-/* ===== Độ mượt khi cuộn nhanh =====
-   Animation chạy theo một "con trỏ" đuổi theo vị trí cuộn thật, với tốc độ tối đa cố định.
-   Cuộn nhanh cỡ nào thì animation cũng chỉ đi tối đa MAX_SCREENS_PER_SEC màn hình/giây
-   (luôn đi hết quỹ đạo, không nhảy cóc). Cuộn chậm thì bám sát, chỉ trễ nhẹ theo SMOOTH_TAU. */
-const MAX_SCREENS_PER_SEC = 1.6;  // giảm = chậm/mượt hơn khi cuộn nhanh, tăng = nhanh hơn
-const SMOOTH_TAU = 0.12;          // giây; tăng = độ trễ êm lớn hơn
+const HOME_AT = 0.72;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const smooth = (x: number) => { const t = clamp01(x); return t * t * (3 - 2 * t); };
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -68,33 +65,33 @@ type Chapter = {
 };
 
 /* Trục cuộn v (0–1) của phần banner:
-   0 → 0.6      : các chương cũ chạy hết, tag về vị trí cuối (chương CTA)
-   0.62 → 0.70  : tag xoay thêm nửa vòng ra mặt sau có QR
+   0 → 0.6      : Tap 1 — các chương chạy hết, tag về vị trí cuối (chương CTA)
+   0.62 → 0.70  : Tap 2 — tag xoay thêm nửa vòng ra mặt sau có QR
    0.72 → 1     : điện thoại hiện lên, quét, ra kết quả (giữ nguyên ở kết quả suốt đoạn exit) */
 const SCENE_END = 0.6;
 
 const CHAPTERS: Chapter[] = [
   {
-    range: [0, 0.072],
+    range: [0, 0.09],
     side: 'center',
     eyebrow: 'QR Tag · Dành riêng cho thú cưng',
     lines: [{ text: 'Một chiếc tag nhỏ.' }, { text: 'Cả hồ sơ của bé.', accent: true }],
   },
   {
-    range: [0.096, 0.168],
+    range: [0.096, 0.21],
     side: 'left',
     eyebrow: 'Mở hộp',
     lines: [{ text: 'Bên trong là một danh tính riêng cho bé của bạn.' }],
   },
   {
-    range: [0.216, 0.264],
+    range: [0.216, 0.30],
     side: 'right',
     eyebrow: 'Cất cánh',
     lines: [{ text: 'Từ hộp nhỏ,' }, { text: 'đến cổ bé yêu.', accent: true }],
   },
-  { range: [0.312, 0.384], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
+  { range: [0.312, 0.42], side: 'right', eyebrow: 'Ba điều tạo nên QR Tag', features: true },
   {
-    range: [0.432, 0.48],
+    range: [0.432, 0.52],
     side: 'left',
     eyebrow: 'Mặt sau',
     lines: [{ text: 'Mỗi tag một mã riêng,' }, { text: 'mỗi bé một hồ sơ.', accent: true }],
@@ -107,7 +104,7 @@ const CHAPTERS: Chapter[] = [
     cta: true,
   },
   {
-    range: [0.77, 0.99],
+    range: [0.77, 1],
     side: 'demo',
     eyebrow: 'Quét thử',
     lines: [{ text: 'Chạm điện thoại vào tag,' }, { text: 'hồ sơ của bé hiện ra.', accent: true }],
@@ -229,12 +226,19 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
   const spinRef = useRef(0);
   const eRef = useRef(0);
   const vpRef = useRef({ w: 1280, h: 800 });
+  const stepRef = useRef(0);          // số lần tap đã hoàn tất (0–3)
+  const busyRef = useRef(false);      // đang chạy animation → bỏ qua tap
+  const aliveRef = useRef(true);
+  const ctrlRef = useRef<{ stop: () => void } | null>(null);
+
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(-1);
   const [dot, setDot] = useState(0);
   const [stage, setStage] = useState<DemoStage>('off');
   const [sceneOn, setSceneOn] = useState(true);
   const [finaleOn, setFinaleOn] = useState(false);
-    const [home, setHome] = useState(false);
+  const [home, setHome] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   // Vị trí điện thoại (độ lệch so với tâm khung) — set trực tiếp, không qua React state
@@ -249,39 +253,17 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
     ps.set(lerp(P.s0, P.sF, m));
   };
 
-  const { scrollYProgress } = useScroll({ target: containerRef, offset: ['start start', 'end end'] });
-  const p = useMotionValue(scrollYProgress.get());
-  useEffect(() => {
-    let raf = 0;
-    let last = performance.now();
-    const maxRate = MAX_SCREENS_PER_SEC / TOTAL_SPAN; // tiến độ (0–1) mỗi giây
-    const tick = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      const cur = p.get();
-      const diff = scrollYProgress.get() - cur;
-      if (Math.abs(diff) > 1e-5) {
-        let step = diff * (1 - Math.exp(-dt / SMOOTH_TAU));
-        const cap = maxRate * dt;
-        step = Math.max(-cap, Math.min(cap, step));
-        p.set(cur + step);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [p, scrollYProgress]);
-
-  const vMV = useTransform(p, (x) => Math.min(1, (x * TOTAL_SPAN) / MAIN_SPAN));
-  const eMV = useTransform(p, (x) => clamp01((x * TOTAL_SPAN - MAIN_SPAN) / EXIT_SPAN));
+  /* Hai "trục thời gian" thay cho scroll:
+     vMV (0–1): banner + quét (Tap 1 chạy 0 → SCENE_END, Tap 2 chạy SCENE_END → 1)
+     eMV (0–1): đoạn exit (Tap 3) */
+  const vMV = useMotionValue(0);
+  const eMV = useMotionValue(0);
   const bannerOpacity = useTransform(eMV, [0, FADE_END], [1, 0]);
   const finaleOpacity = useTransform(eMV, [FINALE_A, FINALE_B], [0, 1]);
   const finaleY = useTransform(eMV, [FINALE_A, FINALE_B], [90, 0]); // parallax: nội dung trượt nhẹ từ dưới lên
   const barScale = vMV;
 
-  useMotionValueEvent(p, 'change', (x) => {
-    const v = Math.min(1, (x * TOTAL_SPAN) / MAIN_SPAN);
-    const e = clamp01((x * TOTAL_SPAN - MAIN_SPAN) / EXIT_SPAN);
+  useMotionValueEvent(vMV, 'change', (v) => {
     progressRef.current = mapScene(v);
     spinRef.current = spinAmount(v);
     const st = stageAt(v);
@@ -293,6 +275,9 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
       if (v >= c.range[0] - 0.01) d = i;
     });
     setDot((prev) => (prev === d ? prev : d));
+  });
+
+  useMotionValueEvent(eMV, 'change', (e) => {
     eRef.current = e;
     applyPhone(e);
     setSceneOn((prev) => (prev === e < FADE_END + 0.05 ? prev : e < FADE_END + 0.05));
@@ -300,8 +285,42 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
     setHome((prev) => (prev === e > HOME_AT ? prev : e > HOME_AT));
   });
 
+  /* Một lần tap = chạy đoạn animation kế tiếp */
+  const advance = useCallback(() => {
+    const s = stepRef.current;
+    if (busyRef.current || s >= 3) return;
+    busyRef.current = true;
+    setBusy(true);
+    const ctrl =
+      s === 0 ? animate(vMV, SCENE_END, { duration: TAP_SECONDS.open, ease: 'linear' })
+      : s === 1 ? animate(vMV, 1, { duration: TAP_SECONDS.scan, ease: 'linear' })
+      : animate(eMV, 1, { duration: TAP_SECONDS.exit, ease: 'easeInOut' });
+    ctrlRef.current = ctrl;
+    ctrl.then(() => {
+      if (!aliveRef.current) return;
+      stepRef.current = s + 1;
+      busyRef.current = false;
+      setStep(s + 1);
+      setBusy(false);
+    });
+  }, [vMV, eMV]);
+
+  const onSectionClick = (e: MouseEvent<HTMLElement>) => {
+    // Bấm vào link/nút (vd. "Tìm hiểu QR Tag", nút tải app) thì để nó làm việc của nó, không tính là tap chuyển cảnh
+    if ((e.target as HTMLElement).closest('a, button, input, select, textarea, [data-no-advance]')) return;
+    advance();
+  };
+  const onSectionKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+      if (stepRef.current < 3) e.preventDefault();
+      advance();
+    }
+  };
+
   // Chỉ dựng nội dung động sau khi vào trình duyệt; đo viewport và đặt đúng vị trí điện thoại
   useEffect(() => {
+    aliveRef.current = true;
     const measure = () => {
       vpRef.current = { w: window.innerWidth, h: window.innerHeight };
       applyPhone(eRef.current);
@@ -309,48 +328,29 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
     measure();
     setMounted(true);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    return () => {
+      aliveRef.current = false;
+      ctrlRef.current?.stop();
+      window.removeEventListener('resize', measure);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cuộn qua hết banner thì gỡ hẳn khỏi trang: cuộn ngược lên sẽ không hiện lại (chỉ reload mới có lại)
-  const [dismissed, setDismissed] = useState(false);
-  const anchorRef = useRef<{ el: Element; top: number } | null>(null);
-
-  useEffect(() => {
-    if (dismissed) return;
-    const check = () => {
-      const el = containerRef.current;
-      if (!el || el.getBoundingClientRect().bottom > 0) return;
-      const next = el.nextElementSibling ?? el.parentElement?.nextElementSibling;
-      if (next) anchorRef.current = { el: next, top: next.getBoundingClientRect().top };
-      setDismissed(true);
-    };
-    check();
-    window.addEventListener('scroll', check, { passive: true });
-    return () => window.removeEventListener('scroll', check);
-  }, [dismissed]);
-
-  // Bù lại phần chiều cao vừa bị gỡ để người dùng không bị nhảy vị trí
-  useLayoutEffect(() => {
-    if (!dismissed) return;
-    const a = anchorRef.current;
-    if (!a) return;
-    const root = document.documentElement;
-    root.style.overflowAnchor = 'none';
-    const diff = a.el.getBoundingClientRect().top - a.top;
-    if (diff) window.scrollBy(0, diff);
-    requestAnimationFrame(() => requestAnimationFrame(() => { root.style.overflowAnchor = ''; }));
-  }, [dismissed]);
-
   const heroInView = useInView(containerRef, { margin: '200px 0px 200px 0px' });
   const chapter = active >= 0 ? CHAPTERS[active] : null;
-
-  if (dismissed) return null;
+  const canTap = step < 3 && !busy;
 
   return (
-    <section ref={containerRef} className="relative w-full" style={{ height: `${(TOTAL_SPAN + 1) * 100}svh` }} aria-label="Giới thiệu QR Tag">
-      <div className="sticky top-0 h-[100svh] w-full overflow-hidden bg-white">
+    <section
+      ref={containerRef}
+      tabIndex={step < 3 ? 0 : -1}
+      onClick={onSectionClick}
+      onKeyDown={onSectionKeyDown}
+      className={`relative h-[100svh] w-full select-none outline-none ${canTap ? 'cursor-pointer' : ''}`}
+      style={{ touchAction: 'manipulation' }}
+      aria-label="Giới thiệu QR Tag — chạm để xem tiếp"
+    >
+      <div className="relative h-full w-full overflow-hidden bg-white">
 
         {/* ===== LỚP BANNER (mờ dần khi exit) ===== */}
         <motion.div className="absolute inset-0" style={{ opacity: bannerOpacity, backgroundColor: DESK_BASE }}>
@@ -420,6 +420,29 @@ export default function ScrollUnboxingHero({ finale }: { finale?: ReactNode }) {
             </motion.div>
           </div>
         )}
+
+        {/* ===== GỢI Ý TAP: chỉ hiện khi đang đứng yên chờ lần chạm kế tiếp ===== */}
+        <AnimatePresence>
+          {mounted && canTap && (
+            <motion.div
+              key={step}
+              aria-hidden
+              className="pointer-events-none absolute bottom-3 right-3 z-40 flex items-center gap-2 rounded-full bg-black/55 px-4 py-2 text-[13px] font-semibold text-white backdrop-blur-md lg:bottom-6 lg:right-8"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.4, delay: step === 0 ? 0.6 : 0.3 }}
+            >
+              <motion.i
+                className="block h-2 w-2 rounded-full"
+                style={{ backgroundColor: COLOR.brand }}
+                animate={{ scale: [1, 1.7, 1], opacity: [1, 0.5, 1] }}
+                transition={{ duration: 1.4, repeat: Infinity }}
+              />
+              {TAP_HINTS[step]}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
